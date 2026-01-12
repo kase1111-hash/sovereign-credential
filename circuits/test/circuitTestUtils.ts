@@ -240,6 +240,7 @@ export function toTimestamp(date: Date | number): bigint {
  * @returns Age in years
  */
 export function calculateAge(birthdate: bigint, currentTime: bigint): bigint {
-  const SECONDS_PER_YEAR = BigInt(31536000); // 365 days
+  // Use 365.25 days to match the AgeThreshold circuit constant
+  const SECONDS_PER_YEAR = BigInt(31557600); // 365.25 * 24 * 60 * 60
   return (currentTime - birthdate) / SECONDS_PER_YEAR;
 }
