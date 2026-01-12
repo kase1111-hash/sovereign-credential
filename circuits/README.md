@@ -157,6 +157,28 @@ Files are automatically downloaded during setup if not present.
 | ValueRange | commitment, min, max, fieldIndex | ~5,500 | <1s |
 | SetMembership | commitment, setRoot, fieldIndex | ~10,000 | <2s |
 
+## Implemented Circuits
+
+### AgeThreshold (Step 11)
+Proves age meets a threshold without revealing birthdate.
+- **Use case**: "Prove I am over 18" or "Prove I am under 65"
+- **Public inputs**: credentialCommitment, threshold, currentTimestamp, comparisonType
+- **Comparison types**: 0 = greater than, 1 = less than
+
+### DateRange (Step 12)
+Proves a date field is within a specified range.
+- **Use case**: "Prove my license was issued between 2020 and 2023"
+- **Public inputs**: credentialCommitment, rangeStart, rangeEnd, fieldIndex
+- **Range**: Inclusive on both ends [rangeStart, rangeEnd]
+
+### ValueRange (Step 12)
+Proves a numeric value is within a specified range.
+- **Use case**: "Prove my credit score is between 700 and 850"
+- **Public inputs**: credentialCommitment, minValue, maxValue, fieldIndex
+- **Tips**:
+  - For "at least X", set maxValue to MAX_UINT64
+  - For "at most X", set minValue to 0
+
 ## References
 
 - [Circom Documentation](https://docs.circom.io/)
