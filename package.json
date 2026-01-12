@@ -20,6 +20,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,sol}\"",
     "circuits:compile": "bash circuits/compile.sh",
     "circuits:setup": "bash circuits/setup.sh",
+    "circuits:proof": "bash circuits/generate_proof.sh",
+    "circuits:test": "mocha --require ts-node/register circuits/test/**/*.test.ts",
     "typechain": "hardhat typechain"
   },
   "repository": {
@@ -77,6 +79,7 @@
     "circomlib": "^2.0.5",
     "dotenv": "^16.4.5",
     "ethers": "^6.11.1",
+    "ffjavascript": "^0.3.0",
     "snarkjs": "^0.7.3"
   },
   "engines": {
