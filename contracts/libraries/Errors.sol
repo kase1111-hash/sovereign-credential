@@ -48,6 +48,9 @@ library Errors {
     /// @notice SC005: Credential is past expiration
     error CredentialExpired(uint256 tokenId);
 
+    /// @notice Credential has not yet expired (cannot mark as expired)
+    error CredentialNotExpired(uint256 tokenId);
+
     /// @notice SC006: Credential is currently suspended
     error CredentialSuspended(uint256 tokenId);
 
