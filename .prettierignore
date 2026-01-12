@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+artifacts/
+cache/
+dist/
+coverage/
+typechain-types/
+
+# Generated files
+*.d.ts
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ZK circuit build outputs
+circuits/build/
+*.zkey
+*.wtns
+*.r1cs
+*.sym
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
