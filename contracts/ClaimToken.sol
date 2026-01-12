@@ -251,6 +251,44 @@ contract ClaimToken is
     }
 
     /**
+     * @dev Internal function to mint a credential in PENDING status
+     */
+    function _mintCredentialPending(
+        CredentialTypes.MintRequest calldata request,
+        address issuer
+    ) internal returns (uint256 tokenId) {
+        _tokenIdCounter++;
+        tokenId = _tokenIdCounter;
+
+        // Store credential data with PENDING status
+        _credentials[tokenId] = CredentialData({
+            claimType: request.claimType,
+            subject: request.subject,
+            issuer: issuer,
+            encryptedPayload: request.encryptedPayload,
+            payloadHash: request.payloadHash,
+            commitments: request.commitments,
+            issuedAt: uint64(block.timestamp),
+            expiresAt: request.expiresAt,
+            status: uint8(CredentialTypes.CredentialStatus.PENDING),
+            metadataURI: request.metadataURI,
+            exists: true
+        });
+
+        // Add to indexes
+        _credentialsByType[request.claimType].add(tokenId);
+        _credentialsBySubject[request.subject].add(tokenId);
+        _credentialsByIssuer[issuer].add(tokenId);
+
+        // Mint the NFT to the subject
+        _safeMint(request.subject, tokenId);
+
+        emit CredentialMinted(tokenId, request.subject, issuer, request.claimType);
+
+        return tokenId;
+    }
+
+    /**
      * @dev Validate a mint request
      */
     function _validateMintRequest(CredentialTypes.MintRequest calldata request) internal view {
@@ -391,6 +429,90 @@ contract ClaimToken is
         cred.status = uint8(CredentialTypes.CredentialStatus.ACTIVE);
 
         emit CredentialReinstated(tokenId, msg.sender);
+    }
+
+    /**
+     * @inheritdoc IClaimToken
+     */
+    function markExpired(uint256 tokenId) external override {
+        _requireCredentialExists(tokenId);
+
+        CredentialData storage cred = _credentials[tokenId];
+
+        // Must have an expiration set and be past it
+        if (cred.expiresAt == 0) {
+            revert Errors.CredentialNotExpired(tokenId);
+        }
+        if (block.timestamp <= cred.expiresAt) {
+            revert Errors.CredentialNotExpired(tokenId);
+        }
+
+        // Only ACTIVE credentials can be marked expired
+        if (cred.status != uint8(CredentialTypes.CredentialStatus.ACTIVE)) {
+            revert Errors.InvalidStatusTransition(cred.status, uint8(CredentialTypes.CredentialStatus.EXPIRED));
+        }
+
+        cred.status = uint8(CredentialTypes.CredentialStatus.EXPIRED);
+
+        emit CredentialExpired(tokenId, cred.expiresAt);
+    }
+
+    /**
+     * @inheritdoc IClaimToken
+     */
+    function mintPending(
+        CredentialTypes.MintRequest calldata request,
+        bytes calldata signature
+    ) external override nonReentrant returns (uint256 tokenId) {
+        // Validate request
+        _validateMintRequest(request);
+
+        // Verify signature and get issuer
+        address issuer = _verifyMintSignature(request, signature);
+
+        // Check issuer authorization
+        (bool authorized, address principal) = issuerRegistry.isAuthorizedSigner(
+            issuer,
+            request.claimType
+        );
+        if (!authorized) {
+            revert Errors.UnauthorizedIssuer(issuer, request.claimType);
+        }
+
+        // Use principal as the issuer (in case signer was a delegate)
+        address actualIssuer = principal;
+
+        // Mint the credential in PENDING status
+        tokenId = _mintCredentialPending(request, actualIssuer);
+
+        return tokenId;
+    }
+
+    /**
+     * @inheritdoc IClaimToken
+     */
+    function confirm(uint256 tokenId) external override {
+        _requireCredentialExists(tokenId);
+
+        CredentialData storage cred = _credentials[tokenId];
+
+        // Check caller is the issuer or a delegate
+        (bool authorized, ) = issuerRegistry.isAuthorizedSigner(msg.sender, cred.claimType);
+        if (!authorized) {
+            revert Errors.UnauthorizedIssuer(msg.sender, cred.claimType);
+        }
+
+        // Check current status is PENDING
+        if (cred.status != uint8(CredentialTypes.CredentialStatus.PENDING)) {
+            revert Errors.InvalidStatusTransition(cred.status, uint8(CredentialTypes.CredentialStatus.ACTIVE));
+        }
+
+        cred.status = uint8(CredentialTypes.CredentialStatus.ACTIVE);
+
+        // Record issuance in registry
+        issuerRegistry.recordIssuance(cred.issuer);
+
+        emit CredentialConfirmed(tokenId, msg.sender);
     }
 
     /**

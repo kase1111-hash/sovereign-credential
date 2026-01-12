@@ -55,6 +55,18 @@ interface IClaimToken {
         address indexed to
     );
 
+    /// @notice Emitted when a credential status is updated to EXPIRED
+    event CredentialExpired(
+        uint256 indexed tokenId,
+        uint64 expiredAt
+    );
+
+    /// @notice Emitted when a pending credential is confirmed
+    event CredentialConfirmed(
+        uint256 indexed tokenId,
+        address indexed confirmer
+    );
+
     // ============================================
     // Minting Functions
     // ============================================
@@ -104,6 +116,30 @@ interface IClaimToken {
      * @param tokenId The credential to reinstate
      */
     function reinstate(uint256 tokenId) external;
+
+    /**
+     * @notice Explicitly mark an expired credential as EXPIRED
+     * @dev Can be called by anyone to update status for gas efficiency in queries
+     * @param tokenId The credential to mark as expired
+     */
+    function markExpired(uint256 tokenId) external;
+
+    /**
+     * @notice Mint a credential in PENDING status (multi-step flow)
+     * @param request The mint request containing credential data
+     * @param signature Issuer's signature over the credential data
+     * @return tokenId The ID of the newly minted credential
+     */
+    function mintPending(
+        CredentialTypes.MintRequest calldata request,
+        bytes calldata signature
+    ) external returns (uint256 tokenId);
+
+    /**
+     * @notice Confirm a pending credential, transitioning it to ACTIVE
+     * @param tokenId The pending credential to confirm
+     */
+    function confirm(uint256 tokenId) external;
 
     /**
      * @notice Extend credential expiration (called by LifecycleManager)
