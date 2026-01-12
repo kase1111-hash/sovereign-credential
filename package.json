@@ -1,0 +1,85 @@
+{
+  "name": "sovereign-credential",
+  "version": "0.1.0-alpha",
+  "description": "Custodian-independent verifiable claims as sovereign NFTs",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
+    "test:gas": "REPORT_GAS=true hardhat test",
+    "node": "hardhat node",
+    "deploy": "hardhat run scripts/deploy.ts",
+    "deploy:testnet": "hardhat run scripts/deploy-testnet.ts --network sepolia",
+    "deploy:mainnet": "hardhat run scripts/deploy-mainnet.ts --network mainnet",
+    "verify": "hardhat verify",
+    "clean": "hardhat clean",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,sol}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,sol}\"",
+    "circuits:compile": "bash circuits/compile.sh",
+    "circuits:setup": "bash circuits/setup.sh",
+    "typechain": "hardhat typechain"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kase1111-hash/sovereign-credential.git"
+  },
+  "keywords": [
+    "ethereum",
+    "solidity",
+    "nft",
+    "credentials",
+    "verifiable-claims",
+    "zero-knowledge",
+    "zk-proofs",
+    "natlangchain"
+  ],
+  "author": "kase1111-hash",
+  "license": "CC0-1.0",
+  "bugs": {
+    "url": "https://github.com/kase1111-hash/sovereign-credential/issues"
+  },
+  "homepage": "https://github.com/kase1111-hash/sovereign-credential#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.6",
+    "@nomicfoundation/hardhat-ethers": "^3.0.5",
+    "@nomicfoundation/hardhat-ignition": "^0.15.0",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.10",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.5",
+    "@openzeppelin/hardhat-upgrades": "^3.0.5",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "@types/chai": "^4.3.14",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.30",
+    "@typescript-eslint/eslint-plugin": "^7.4.0",
+    "@typescript-eslint/parser": "^7.4.0",
+    "chai": "^4.4.1",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "hardhat": "^2.22.2",
+    "hardhat-gas-reporter": "^1.0.9",
+    "prettier": "^3.2.5",
+    "prettier-plugin-solidity": "^1.3.1",
+    "solidity-coverage": "^0.8.11",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.2",
+    "typescript": "^5.4.3"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2",
+    "@openzeppelin/contracts-upgradeable": "^5.0.2",
+    "circomlib": "^2.0.5",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.11.1",
+    "snarkjs": "^0.7.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
