@@ -45,7 +45,9 @@
     "./test/**/*.ts",
     "./sdk/**/*.ts",
     "./types/**/*.ts",
-    "./typechain-types/**/*.ts"
+    "./typechain-types/**/*.ts",
+    "./utils/**/*.ts",
+    "./circuits/test/**/*.ts"
   ],
   "exclude": [
     "node_modules",

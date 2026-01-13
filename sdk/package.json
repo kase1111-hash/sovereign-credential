@@ -1,8 +1,9 @@
 {
   "name": "@sovereign-credential/sdk",
-  "version": "1.0.0",
-  "description": "SDK for generating zero-knowledge proofs for Sovereign Credential disclosures",
+  "version": "0.1.0-alpha",
+  "description": "TypeScript SDK for generating zero-knowledge proofs for Sovereign Credential",
   "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "files": [
     "dist",
@@ -10,30 +11,35 @@
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist",
-    "test": "jest",
+    "build:watch": "tsc --watch",
+    "test": "mocha --require ts-node/register 'test/**/*.test.ts'",
     "lint": "eslint src --ext .ts",
-    "prepublishOnly": "npm run clean && npm run build"
+    "clean": "rm -rf dist"
   },
   "keywords": [
-    "zk",
     "zero-knowledge",
-    "credential",
-    "nft",
+    "zk-proofs",
     "snarkjs",
-    "groth16"
+    "circom",
+    "credentials",
+    "ethereum"
   ],
-  "author": "",
-  "license": "MIT",
-  "dependencies": {
+  "author": "kase1111-hash",
+  "license": "CC0-1.0",
+  "peerDependencies": {
+    "ethers": "^6.0.0",
     "snarkjs": "^0.7.0"
   },
-  "peerDependencies": {
-    "ethers": "^6.0.0"
+  "dependencies": {
+    "circomlibjs": "^0.1.7",
+    "ffjavascript": "^0.3.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.0.0"
+    "@types/node": "^20.11.30",
+    "@types/snarkjs": "^0.7.8",
+    "ethers": "^6.11.1",
+    "snarkjs": "^0.7.3",
+    "typescript": "^5.4.3"
   },
   "engines": {
     "node": ">=18.0.0"
