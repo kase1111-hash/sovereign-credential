@@ -728,16 +728,16 @@ template DateRange() {
 
 ---
 
-### Step 13: Implement Set Membership Circuit 🔴
+### Step 13: Implement Set Membership Circuit 🔴 ✅
 
 **Goal:** Build circuit proving a value is in an allowed set (via Merkle proof).
 
 **Tasks:**
-- [ ] Implement SetMembership.circom
-- [ ] Add Merkle tree verification
-- [ ] Create Merkle tree helper utilities
-- [ ] Generate Solidity verifier
-- [ ] Write tests with various set sizes
+- [x] Implement SetMembership.circom
+- [x] Add Merkle tree verification
+- [x] Create Merkle tree helper utilities
+- [x] Generate Solidity verifier (placeholder created, snarkjs generates real ones)
+- [x] Write tests with various set sizes
 
 **Files to Create:**
 ```
