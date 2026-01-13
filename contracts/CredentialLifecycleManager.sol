@@ -80,6 +80,52 @@ contract CredentialLifecycleManager is
     /// @notice Mapping of signature hash to used status (replay prevention)
     mapping(bytes32 => bool) private _usedSignatures;
 
+    /// @notice Mapping of token ID to executor access
+    mapping(uint256 => CredentialTypes.ExecutorAccess) private _executorAccess;
+
+    /// @notice Mapping of token ID to inheritance conditions
+    mapping(uint256 => CredentialTypes.InheritanceCondition[]) private _inheritanceConditions;
+
+    /// @notice Mapping of dispute ID to dispute record
+    mapping(uint256 => CredentialTypes.InheritanceDispute) private _disputes;
+
+    /// @notice Mapping of token ID to active dispute ID (0 = no dispute)
+    mapping(uint256 => uint256) private _activeDisputes;
+
+    /// @notice Mapping of token ID to FIE trigger timestamp (for dispute window)
+    mapping(uint256 => uint64) private _triggerTimestamps;
+
+    /// @notice Counter for dispute IDs
+    uint256 private _disputeIdCounter;
+
+    // ============================================
+    // Events (Advanced Inheritance)
+    // ============================================
+
+    /// @notice Emitted when executor access is granted
+    event ExecutorAccessGranted(
+        uint256 indexed tokenId,
+        address indexed executor,
+        uint64 expiresAt,
+        uint8 permissions
+    );
+
+    /// @notice Emitted when executor access is revoked
+    event ExecutorAccessRevoked(uint256 indexed tokenId, address indexed executor);
+
+    /// @notice Emitted when inheritance conditions are set
+    event InheritanceConditionsSet(uint256 indexed tokenId, uint256 conditionCount);
+
+    /// @notice Emitted when a dispute is filed
+    event DisputeFiled(
+        uint256 indexed disputeId,
+        uint256 indexed tokenId,
+        address indexed disputant
+    );
+
+    /// @notice Emitted when a dispute is resolved
+    event DisputeResolved(uint256 indexed disputeId, uint8 resolution);
+
     // ============================================
     // Constructor & Initializer
     // ============================================
@@ -416,6 +462,11 @@ contract CredentialLifecycleManager is
             revert Errors.OperationNotAllowed();
         }
 
+        // Check for pending disputes
+        if (_activeDisputes[tokenId] != 0) {
+            revert Errors.InheritanceFrozen(tokenId, _activeDisputes[tokenId]);
+        }
+
         CredentialTypes.Credential memory cred = claimToken.getCredential(tokenId);
 
         // Check if splittable
@@ -423,9 +474,17 @@ contract CredentialLifecycleManager is
             revert Errors.NotSplittable(cred.claimType);
         }
 
+        // Check if already a split credential
+        if (claimToken.isSplitCredential(tokenId)) {
+            revert Errors.CannotSplitCredential(tokenId, "Already split");
+        }
+
         // Validate inputs
         if (beneficiaries.length != shares.length) {
             revert Errors.BeneficiarySharesMismatch(beneficiaries.length, shares.length);
+        }
+        if (beneficiaries.length == 0) {
+            revert Errors.EmptyArray();
         }
 
         uint256 totalShares = 0;
@@ -439,16 +498,314 @@ contract CredentialLifecycleManager is
             revert Errors.InvalidShares(totalShares);
         }
 
-        // Note: Actual splitting implementation would require ClaimToken support
-        // for burning the original and minting new credentials with share metadata
-        // This is a placeholder that emits the event
+        // Burn original credential
+        claimToken.burn(tokenId);
 
+        // Mint new credentials for each beneficiary
         newTokenIds = new uint256[](beneficiaries.length);
-        // In a full implementation, newTokenIds would be populated with actual minted tokens
+        uint8 totalSplits = uint8(beneficiaries.length);
+
+        for (uint256 i = 0; i < beneficiaries.length; i++) {
+            newTokenIds[i] = claimToken.mintSplit(
+                cred,
+                beneficiaries[i],
+                shares[i],
+                uint8(i),
+                totalSplits
+            );
+        }
 
         emit CredentialSplit(tokenId, newTokenIds, beneficiaries, shares);
 
         return newTokenIds;
+    }
+
+    // ============================================
+    // Conditional Inheritance Functions
+    // ============================================
+
+    /**
+     * @notice Set inheritance conditions for a credential
+     * @param tokenId The credential to set conditions for
+     * @param conditions Array of inheritance conditions
+     */
+    function setInheritanceConditions(
+        uint256 tokenId,
+        CredentialTypes.InheritanceCondition[] calldata conditions
+    ) external nonReentrant {
+        // Verify caller is the holder
+        address holder = _getCredentialHolder(tokenId);
+        if (msg.sender != holder) {
+            revert Errors.NotHolder(msg.sender, holder);
+        }
+
+        // Validate conditions
+        for (uint256 i = 0; i < conditions.length; i++) {
+            _validateCondition(conditions[i]);
+        }
+
+        // Clear existing conditions
+        delete _inheritanceConditions[tokenId];
+
+        // Store new conditions
+        for (uint256 i = 0; i < conditions.length; i++) {
+            _inheritanceConditions[tokenId].push(conditions[i]);
+        }
+
+        emit InheritanceConditionsSet(tokenId, conditions.length);
+    }
+
+    /**
+     * @notice Get inheritance conditions for a credential
+     * @param tokenId The credential to query
+     * @return conditions Array of inheritance conditions
+     */
+    function getInheritanceConditions(
+        uint256 tokenId
+    ) external view returns (CredentialTypes.InheritanceCondition[] memory conditions) {
+        return _inheritanceConditions[tokenId];
+    }
+
+    /**
+     * @notice Evaluate if all inheritance conditions are met for a beneficiary
+     * @param tokenId The credential
+     * @param beneficiary The beneficiary to check
+     * @return met True if all conditions are met
+     */
+    function evaluateConditions(
+        uint256 tokenId,
+        address beneficiary
+    ) external view returns (bool met) {
+        CredentialTypes.InheritanceCondition[] storage conditions = _inheritanceConditions[tokenId];
+
+        for (uint256 i = 0; i < conditions.length; i++) {
+            if (!_evaluateCondition(conditions[i], beneficiary)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // ============================================
+    // Executor Access Functions (Time-bounded)
+    // ============================================
+
+    /**
+     * @notice Grant executor access for estate settlement
+     * @param tokenId The credential to grant access to
+     * @param executor Address of the executor
+     * @param duration Duration of access in seconds
+     * @param permissions Permission bitmap
+     */
+    function grantExecutorAccess(
+        uint256 tokenId,
+        address executor,
+        uint64 duration,
+        uint8 permissions
+    ) external nonReentrant {
+        // Only FIE bridge or admin can grant executor access
+        if (!hasRole(FIE_BRIDGE_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert Errors.OperationNotAllowed();
+        }
+
+        // Validate executor
+        if (executor == address(0)) {
+            revert Errors.ZeroAddress();
+        }
+
+        // Check if access already granted
+        if (_executorAccess[tokenId].executor != address(0) &&
+            _executorAccess[tokenId].expiresAt > block.timestamp) {
+            revert Errors.ExecutorAccessAlreadyGranted(executor, tokenId);
+        }
+
+        // Validate duration
+        if (duration > CredentialTypes.MAX_EXECUTOR_PERIOD) {
+            revert Errors.ExecutorPeriodExceedsMax(duration, CredentialTypes.MAX_EXECUTOR_PERIOD);
+        }
+        if (duration == 0) {
+            duration = CredentialTypes.DEFAULT_EXECUTOR_PERIOD;
+        }
+
+        uint64 expiresAt = uint64(block.timestamp) + duration;
+
+        _executorAccess[tokenId] = CredentialTypes.ExecutorAccess({
+            executor: executor,
+            grantedAt: uint64(block.timestamp),
+            expiresAt: expiresAt,
+            permissions: permissions
+        });
+
+        emit ExecutorAccessGranted(tokenId, executor, expiresAt, permissions);
+    }
+
+    /**
+     * @notice Revoke executor access
+     * @param tokenId The credential to revoke access from
+     */
+    function revokeExecutorAccess(uint256 tokenId) external {
+        // Only admin can revoke
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert Errors.OperationNotAllowed();
+        }
+
+        address executor = _executorAccess[tokenId].executor;
+        delete _executorAccess[tokenId];
+
+        emit ExecutorAccessRevoked(tokenId, executor);
+    }
+
+    /**
+     * @notice Get executor access details
+     * @param tokenId The credential to query
+     * @return access The executor access struct
+     */
+    function getExecutorAccess(
+        uint256 tokenId
+    ) external view returns (CredentialTypes.ExecutorAccess memory access) {
+        return _executorAccess[tokenId];
+    }
+
+    /**
+     * @notice Check if an address has valid executor access
+     * @param tokenId The credential
+     * @param executor The address to check
+     * @param permission The required permission flag
+     * @return hasAccess True if access is valid
+     */
+    function hasExecutorAccess(
+        uint256 tokenId,
+        address executor,
+        uint8 permission
+    ) external view returns (bool hasAccess) {
+        CredentialTypes.ExecutorAccess storage access = _executorAccess[tokenId];
+
+        if (access.executor != executor) {
+            return false;
+        }
+        if (block.timestamp > access.expiresAt) {
+            return false;
+        }
+        if ((access.permissions & permission) == 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // ============================================
+    // Dispute Handling Functions
+    // ============================================
+
+    /**
+     * @notice File a dispute against inheritance
+     * @param tokenId The credential being disputed
+     * @param reason Encoded reason for the dispute
+     * @return disputeId The ID of the filed dispute
+     */
+    function fileDispute(
+        uint256 tokenId,
+        bytes calldata reason
+    ) external nonReentrant returns (uint256 disputeId) {
+        // Check dispute window
+        uint64 triggerTime = _triggerTimestamps[tokenId];
+        if (triggerTime == 0) {
+            // No trigger yet, allow dispute filing anyway
+        } else {
+            uint64 windowEnd = triggerTime + CredentialTypes.DISPUTE_FILING_WINDOW;
+            if (block.timestamp > windowEnd) {
+                revert Errors.DisputeWindowExpired(tokenId, windowEnd);
+            }
+        }
+
+        // Check no active dispute
+        if (_activeDisputes[tokenId] != 0) {
+            revert Errors.DisputeAlreadyFiled(tokenId);
+        }
+
+        // Create dispute
+        _disputeIdCounter++;
+        disputeId = _disputeIdCounter;
+
+        _disputes[disputeId] = CredentialTypes.InheritanceDispute({
+            disputeId: disputeId,
+            tokenId: tokenId,
+            disputant: msg.sender,
+            reason: reason,
+            filedAt: uint64(block.timestamp),
+            resolvedAt: 0,
+            resolution: CredentialTypes.DISPUTE_PENDING
+        });
+
+        _activeDisputes[tokenId] = disputeId;
+
+        emit DisputeFiled(disputeId, tokenId, msg.sender);
+
+        return disputeId;
+    }
+
+    /**
+     * @notice Resolve a dispute (admin only)
+     * @param disputeId The dispute to resolve
+     * @param resolution Resolution outcome (1=upheld, 2=rejected)
+     */
+    function resolveDispute(
+        uint256 disputeId,
+        uint8 resolution
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        CredentialTypes.InheritanceDispute storage dispute = _disputes[disputeId];
+
+        if (dispute.disputeId == 0) {
+            revert Errors.DisputeNotFound(disputeId);
+        }
+        if (dispute.resolution != CredentialTypes.DISPUTE_PENDING) {
+            revert Errors.DisputeAlreadyResolved(disputeId);
+        }
+        if (resolution != CredentialTypes.DISPUTE_UPHELD &&
+            resolution != CredentialTypes.DISPUTE_REJECTED) {
+            revert Errors.InvalidConditionParams(bytes32(0));
+        }
+
+        dispute.resolvedAt = uint64(block.timestamp);
+        dispute.resolution = resolution;
+
+        // Clear active dispute
+        _activeDisputes[dispute.tokenId] = 0;
+
+        emit DisputeResolved(disputeId, resolution);
+    }
+
+    /**
+     * @notice Get dispute details
+     * @param disputeId The dispute to query
+     * @return dispute The dispute struct
+     */
+    function getDispute(
+        uint256 disputeId
+    ) external view returns (CredentialTypes.InheritanceDispute memory dispute) {
+        return _disputes[disputeId];
+    }
+
+    /**
+     * @notice Check if a credential has an active dispute
+     * @param tokenId The credential to check
+     * @return hasDispute True if there's an active dispute
+     * @return disputeId The active dispute ID (0 if none)
+     */
+    function hasActiveDispute(
+        uint256 tokenId
+    ) external view returns (bool hasDispute, uint256 disputeId) {
+        disputeId = _activeDisputes[tokenId];
+        return (disputeId != 0, disputeId);
+    }
+
+    /**
+     * @notice Record FIE trigger timestamp for dispute window calculation
+     * @param tokenId The credential that was triggered
+     */
+    function recordTrigger(uint256 tokenId) external onlyRole(FIE_BRIDGE_ROLE) {
+        _triggerTimestamps[tokenId] = uint64(block.timestamp);
     }
 
     // ============================================
@@ -734,15 +1091,25 @@ contract CredentialLifecycleManager is
         uint256 tokenId,
         CredentialTypes.InheritanceDirective memory directive
     ) internal {
-        // This would mint new credentials for each beneficiary with their share
-        // The original credential would be burned
+        // Get original credential data
+        CredentialTypes.Credential memory cred = claimToken.getCredential(tokenId);
 
+        // Burn the original credential
+        claimToken.burn(tokenId);
+
+        // Mint new credentials for each beneficiary
         uint256[] memory newTokenIds = new uint256[](directive.beneficiaries.length);
+        uint8 totalSplits = uint8(directive.beneficiaries.length);
 
-        // In a full implementation:
-        // 1. Burn original credential
-        // 2. Mint new credentials with share metadata for each beneficiary
-        // 3. Track lineage from original to new credentials
+        for (uint256 i = 0; i < directive.beneficiaries.length; i++) {
+            newTokenIds[i] = claimToken.mintSplit(
+                cred,
+                directive.beneficiaries[i],
+                directive.shares[i],
+                uint8(i),
+                totalSplits
+            );
+        }
 
         emit CredentialSplit(
             tokenId,
@@ -755,6 +1122,75 @@ contract CredentialLifecycleManager is
         for (uint256 i = 0; i < directive.beneficiaries.length; i++) {
             emit InheritanceExecuted(tokenId, directive.beneficiaries[i]);
         }
+    }
+
+    /**
+     * @dev Validate an inheritance condition
+     */
+    function _validateCondition(
+        CredentialTypes.InheritanceCondition calldata condition
+    ) internal pure {
+        // Validate condition type
+        if (condition.conditionType == CredentialTypes.CONDITION_AGE_THRESHOLD) {
+            // Params should encode: uint8 minAge
+            if (condition.params.length < 1) {
+                revert Errors.InvalidConditionParams(condition.conditionType);
+            }
+        } else if (condition.conditionType == CredentialTypes.CONDITION_DATE_AFTER) {
+            // Params should encode: uint64 timestamp
+            if (condition.params.length < 8) {
+                revert Errors.InvalidConditionParams(condition.conditionType);
+            }
+        } else if (condition.conditionType == CredentialTypes.CONDITION_CUSTOM) {
+            // Custom conditions require an oracle
+            if (condition.oracleAddress == address(0)) {
+                revert Errors.InvalidConditionParams(condition.conditionType);
+            }
+        } else {
+            revert Errors.InvalidConditionParams(condition.conditionType);
+        }
+    }
+
+    /**
+     * @dev Evaluate a single inheritance condition
+     */
+    function _evaluateCondition(
+        CredentialTypes.InheritanceCondition storage condition,
+        address beneficiary
+    ) internal view returns (bool) {
+        if (condition.conditionType == CredentialTypes.CONDITION_AGE_THRESHOLD) {
+            // For age threshold, we would need beneficiary's age from an oracle
+            // For now, we check if there's an oracle to query
+            if (condition.oracleAddress != address(0)) {
+                // Try to call oracle - simplified for this implementation
+                (bool success, bytes memory result) = condition.oracleAddress.staticcall(
+                    abi.encodeWithSignature("verifyAge(address,uint8)", beneficiary, abi.decode(condition.params, (uint8)))
+                );
+                if (success && result.length >= 32) {
+                    return abi.decode(result, (bool));
+                }
+            }
+            // If no oracle or call failed, condition cannot be evaluated
+            return false;
+        } else if (condition.conditionType == CredentialTypes.CONDITION_DATE_AFTER) {
+            // Decode the target timestamp
+            uint64 targetDate = abi.decode(condition.params, (uint64));
+            return block.timestamp >= targetDate;
+        } else if (condition.conditionType == CredentialTypes.CONDITION_CUSTOM) {
+            // Custom conditions must call the oracle
+            if (condition.oracleAddress == address(0)) {
+                return false;
+            }
+            (bool success, bytes memory result) = condition.oracleAddress.staticcall(
+                abi.encodeWithSignature("evaluate(address)", beneficiary)
+            );
+            if (success && result.length >= 32) {
+                return abi.decode(result, (bool));
+            }
+            return false;
+        }
+
+        return false;
     }
 
     // ============================================

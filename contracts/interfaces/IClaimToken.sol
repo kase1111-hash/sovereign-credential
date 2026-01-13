@@ -154,6 +154,31 @@ interface IClaimToken {
      */
     function markInherited(uint256 tokenId) external;
 
+    /**
+     * @notice Burn a credential (for splitting)
+     * @param tokenId The credential to burn
+     * @dev Only callable by lifecycle manager
+     */
+    function burn(uint256 tokenId) external;
+
+    /**
+     * @notice Mint a split credential from an original
+     * @param original The original credential data
+     * @param beneficiary The new owner of the split credential
+     * @param sharePercentage The percentage share (0-100)
+     * @param splitIndex Index of this split
+     * @param totalSplits Total number of splits
+     * @return tokenId The ID of the newly minted split credential
+     * @dev Only callable by lifecycle manager
+     */
+    function mintSplit(
+        CredentialTypes.Credential calldata original,
+        address beneficiary,
+        uint8 sharePercentage,
+        uint8 splitIndex,
+        uint8 totalSplits
+    ) external returns (uint256 tokenId);
+
     // ============================================
     // Verification Functions
     // ============================================
@@ -243,6 +268,22 @@ interface IClaimToken {
     function getCommitments(
         uint256 tokenId
     ) external view returns (bytes32[] memory commitments);
+
+    /**
+     * @notice Get split metadata for a credential
+     * @param tokenId The credential to check
+     * @return metadata The split metadata (if split credential)
+     */
+    function getSplitMetadata(
+        uint256 tokenId
+    ) external view returns (CredentialTypes.SplitMetadata memory metadata);
+
+    /**
+     * @notice Check if a credential is a split credential
+     * @param tokenId The credential to check
+     * @return isSplit True if credential was created from a split
+     */
+    function isSplitCredential(uint256 tokenId) external view returns (bool isSplit);
 
     // ============================================
     // Administrative Functions
