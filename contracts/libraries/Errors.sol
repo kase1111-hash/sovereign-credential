@@ -181,4 +181,44 @@ library Errors {
 
     /// @notice Operation would exceed maximum limit
     error LimitExceeded(uint256 current, uint256 max);
+
+    // ============================================
+    // Advanced Inheritance Errors
+    // ============================================
+
+    /// @notice Inheritance condition not met
+    error ConditionNotMet(bytes32 conditionType, address beneficiary);
+
+    /// @notice Executor access not granted or expired
+    error ExecutorAccessDenied(address executor, uint256 tokenId);
+
+    /// @notice Executor access already granted
+    error ExecutorAccessAlreadyGranted(address executor, uint256 tokenId);
+
+    /// @notice Executor access period exceeds maximum
+    error ExecutorPeriodExceedsMax(uint64 requested, uint64 max);
+
+    /// @notice Dispute already filed for this credential
+    error DisputeAlreadyFiled(uint256 tokenId);
+
+    /// @notice Dispute not found
+    error DisputeNotFound(uint256 disputeId);
+
+    /// @notice Dispute filing window has passed
+    error DisputeWindowExpired(uint256 tokenId, uint64 windowEnd);
+
+    /// @notice Dispute already resolved
+    error DisputeAlreadyResolved(uint256 disputeId);
+
+    /// @notice Inheritance frozen due to pending dispute
+    error InheritanceFrozen(uint256 tokenId, uint256 disputeId);
+
+    /// @notice Credential cannot be split (not splittable type or already split)
+    error CannotSplitCredential(uint256 tokenId, string reason);
+
+    /// @notice Invalid condition parameters
+    error InvalidConditionParams(bytes32 conditionType);
+
+    /// @notice Oracle verification failed
+    error OracleVerificationFailed(address oracle, bytes32 conditionType);
 }

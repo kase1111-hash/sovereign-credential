@@ -89,6 +89,9 @@ contract ClaimToken is
     /// @notice Mapping of issuer to nonce for signature validation
     mapping(address => uint256) private _issuerNonces;
 
+    /// @notice Mapping of token ID to split metadata (for split credentials)
+    mapping(uint256 => CredentialTypes.SplitMetadata) private _splitMetadata;
+
     // ============================================
     // Internal Structs
     // ============================================
@@ -547,6 +550,107 @@ contract ClaimToken is
         cred.status = uint8(CredentialTypes.CredentialStatus.INHERITED);
     }
 
+    /**
+     * @inheritdoc IClaimToken
+     */
+    function burn(uint256 tokenId) external override onlyRole(LIFECYCLE_MANAGER_ROLE) {
+        _requireCredentialExists(tokenId);
+
+        CredentialData storage cred = _credentials[tokenId];
+
+        // Remove from indexes
+        _credentialsByType[cred.claimType].remove(tokenId);
+        _credentialsBySubject[cred.subject].remove(tokenId);
+        _credentialsByIssuer[cred.issuer].remove(tokenId);
+
+        // Mark as not existing (keep data for audit trail)
+        cred.exists = false;
+
+        // Burn the NFT
+        _burn(tokenId);
+    }
+
+    /**
+     * @inheritdoc IClaimToken
+     */
+    function mintSplit(
+        CredentialTypes.Credential calldata original,
+        address beneficiary,
+        uint8 sharePercentage,
+        uint8 splitIndex,
+        uint8 totalSplits
+    ) external override onlyRole(LIFECYCLE_MANAGER_ROLE) returns (uint256 tokenId) {
+        _tokenIdCounter++;
+        tokenId = _tokenIdCounter;
+
+        // Store credential data with modified metadata to indicate split
+        string memory splitMetadataURI = string(
+            abi.encodePacked(
+                original.metadataURI,
+                "?split=",
+                _uint8ToString(splitIndex),
+                "&share=",
+                _uint8ToString(sharePercentage)
+            )
+        );
+
+        _credentials[tokenId] = CredentialData({
+            claimType: original.claimType,
+            subject: beneficiary,
+            issuer: original.issuer,
+            encryptedPayload: original.encryptedPayload,
+            payloadHash: original.payloadHash,
+            commitments: original.commitments,
+            issuedAt: uint64(block.timestamp),
+            expiresAt: original.expiresAt,
+            status: uint8(CredentialTypes.CredentialStatus.INHERITED),
+            metadataURI: splitMetadataURI,
+            exists: true
+        });
+
+        // Store split metadata
+        _splitMetadata[tokenId] = CredentialTypes.SplitMetadata({
+            originalTokenId: original.tokenId,
+            sharePercentage: sharePercentage,
+            splitIndex: splitIndex,
+            totalSplits: totalSplits
+        });
+
+        // Add to indexes
+        _credentialsByType[original.claimType].add(tokenId);
+        _credentialsBySubject[beneficiary].add(tokenId);
+        _credentialsByIssuer[original.issuer].add(tokenId);
+
+        // Mint the NFT to the beneficiary
+        _safeMint(beneficiary, tokenId);
+
+        emit CredentialMinted(tokenId, beneficiary, original.issuer, original.claimType);
+
+        return tokenId;
+    }
+
+    /**
+     * @dev Convert uint8 to string for metadata URI
+     */
+    function _uint8ToString(uint8 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint8 temp = value;
+        uint8 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint8(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+
     // ============================================
     // Verification Functions
     // ============================================
@@ -702,6 +806,24 @@ contract ClaimToken is
     ) external view override returns (bytes32[] memory commitments) {
         _requireCredentialExists(tokenId);
         return _credentials[tokenId].commitments;
+    }
+
+    /**
+     * @inheritdoc IClaimToken
+     */
+    function getSplitMetadata(
+        uint256 tokenId
+    ) external view override returns (CredentialTypes.SplitMetadata memory metadata) {
+        _requireCredentialExists(tokenId);
+        return _splitMetadata[tokenId];
+    }
+
+    /**
+     * @inheritdoc IClaimToken
+     */
+    function isSplitCredential(uint256 tokenId) external view override returns (bool isSplit) {
+        _requireCredentialExists(tokenId);
+        return _splitMetadata[tokenId].originalTokenId != 0;
     }
 
     /**

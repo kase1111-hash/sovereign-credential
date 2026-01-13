@@ -181,6 +181,108 @@ library CredentialTypes {
         uint64 newExpiry;
     }
 
+    /**
+     * @notice Inheritance condition for conditional transfers (Spec 8.3)
+     * @param conditionType Type of condition (AGE_THRESHOLD, DATE_AFTER, CUSTOM)
+     * @param params Encoded condition parameters
+     * @param oracleAddress Address of oracle for condition verification (if needed)
+     */
+    struct InheritanceCondition {
+        bytes32 conditionType;
+        bytes params;
+        address oracleAddress;
+    }
+
+    /**
+     * @notice Executor access for estate settlement (Spec 8.4)
+     * @param executor Address of the designated executor
+     * @param grantedAt Timestamp when access was granted
+     * @param expiresAt Timestamp when access expires
+     * @param permissions Bitmap of allowed operations
+     */
+    struct ExecutorAccess {
+        address executor;
+        uint64 grantedAt;
+        uint64 expiresAt;
+        uint8 permissions;
+    }
+
+    /**
+     * @notice Inheritance dispute record (Spec 8.5)
+     * @param disputeId Unique identifier for the dispute
+     * @param tokenId Credential being disputed
+     * @param disputant Address filing the dispute
+     * @param reason Encoded reason for dispute
+     * @param filedAt Timestamp when dispute was filed
+     * @param resolvedAt Timestamp when dispute was resolved (0 if pending)
+     * @param resolution Resolution outcome (0=pending, 1=upheld, 2=rejected)
+     */
+    struct InheritanceDispute {
+        uint256 disputeId;
+        uint256 tokenId;
+        address disputant;
+        bytes reason;
+        uint64 filedAt;
+        uint64 resolvedAt;
+        uint8 resolution;
+    }
+
+    /**
+     * @notice Split credential metadata for partial inheritance
+     * @param originalTokenId Token ID of the original credential that was split
+     * @param sharePercentage Percentage share (0-100) this split represents
+     * @param splitIndex Index of this split among siblings
+     * @param totalSplits Total number of splits created
+     */
+    struct SplitMetadata {
+        uint256 originalTokenId;
+        uint8 sharePercentage;
+        uint8 splitIndex;
+        uint8 totalSplits;
+    }
+
+    // ============================================
+    // Condition Type Constants
+    // ============================================
+
+    /// @notice Condition: beneficiary must be above age threshold
+    bytes32 internal constant CONDITION_AGE_THRESHOLD = keccak256("AGE_THRESHOLD");
+
+    /// @notice Condition: current date must be after specified date
+    bytes32 internal constant CONDITION_DATE_AFTER = keccak256("DATE_AFTER");
+
+    /// @notice Condition: custom condition verified by oracle
+    bytes32 internal constant CONDITION_CUSTOM = keccak256("CUSTOM");
+
+    // ============================================
+    // Executor Permission Flags
+    // ============================================
+
+    /// @notice Permission to view credential details
+    uint8 internal constant PERMISSION_VIEW = 1;
+
+    /// @notice Permission to transfer credentials
+    uint8 internal constant PERMISSION_TRANSFER = 2;
+
+    /// @notice Permission to manage inheritance directives
+    uint8 internal constant PERMISSION_MANAGE_INHERITANCE = 4;
+
+    /// @notice Full permissions (all flags set)
+    uint8 internal constant PERMISSION_FULL = 7;
+
+    // ============================================
+    // Dispute Resolution Outcomes
+    // ============================================
+
+    /// @notice Dispute is still pending
+    uint8 internal constant DISPUTE_PENDING = 0;
+
+    /// @notice Dispute was upheld (inheritance blocked/modified)
+    uint8 internal constant DISPUTE_UPHELD = 1;
+
+    /// @notice Dispute was rejected (inheritance proceeds)
+    uint8 internal constant DISPUTE_REJECTED = 2;
+
     // ============================================
     // Constants
     // ============================================
@@ -202,4 +304,13 @@ library CredentialTypes {
 
     /// @notice Maximum encrypted payload size (32KB as per Spec C-05)
     uint256 internal constant MAX_PAYLOAD_SIZE = 32 * 1024;
+
+    /// @notice Default executor access period (90 days)
+    uint64 internal constant DEFAULT_EXECUTOR_PERIOD = 90 days;
+
+    /// @notice Maximum executor access period (365 days)
+    uint64 internal constant MAX_EXECUTOR_PERIOD = 365 days;
+
+    /// @notice Dispute filing window after trigger (30 days)
+    uint64 internal constant DISPUTE_FILING_WINDOW = 30 days;
 }
