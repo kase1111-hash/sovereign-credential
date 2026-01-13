@@ -91,6 +91,12 @@ library Errors {
     /// @notice Verifier not registered for disclosure type
     error VerifierNotRegistered(bytes32 disclosureType);
 
+    /// @notice Invalid disclosure type provided
+    error InvalidDisclosureType(bytes32 disclosureType);
+
+    /// @notice Invalid number of disclosures for compound proof
+    error InvalidDisclosureCount(uint256 count);
+
     /// @notice Proof does not match credential commitment
     error CommitmentMismatch(bytes32 expected, bytes32 actual);
 
