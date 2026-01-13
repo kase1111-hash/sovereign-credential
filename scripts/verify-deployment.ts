@@ -2,6 +2,9 @@
  * @file verify-deployment.ts
  * @description Verification script to validate Sovereign Credential deployment
  * @dev Checks all contracts are properly deployed and configured
+ *
+ * Usage:
+ *   npx hardhat run scripts/verify-deployment.ts --network <network>
  */
 
 import { ethers, network } from "hardhat";
@@ -11,10 +14,19 @@ import * as path from "path";
 interface DeploymentData {
   networkName: string;
   chainId: number;
+  timestamp: number;
   contracts: {
     issuerRegistry: { proxy: string; implementation: string };
     claimToken: { proxy: string; implementation: string };
     credentialLifecycleManager: { proxy: string; implementation: string };
+    zkDisclosureEngine?: { proxy: string; implementation: string };
+    fieBridge?: { proxy: string; implementation: string };
+    verifiers?: {
+      dateRange: string;
+      valueRange: string;
+      setMembership: string;
+      compoundProof: string;
+    };
   };
   roles: {
     admin: string;
@@ -22,27 +34,39 @@ interface DeploymentData {
   };
 }
 
+interface VerificationCheck {
+  name: string;
+  passed: boolean;
+  message: string;
+  critical: boolean;
+}
+
 interface VerificationResult {
   passed: boolean;
-  checks: {
-    name: string;
-    passed: boolean;
-    message: string;
-  }[];
+  checks: VerificationCheck[];
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    critical: number;
+  };
 }
 
 async function main() {
-  console.log("🔍 Verifying Sovereign Credential Deployment\n");
+  console.log("=".repeat(60));
+  console.log("SOVEREIGN CREDENTIAL DEPLOYMENT VERIFICATION");
+  console.log("=".repeat(60));
 
   // Load deployment
   const deployment = loadDeployment();
   if (!deployment) {
-    console.error("❌ No deployment found for current network");
+    console.error(`\nError: No deployment found for network: ${network.name}`);
+    console.log(`Run 'npx hardhat run scripts/deploy.ts --network ${network.name}' first.`);
     process.exit(1);
   }
 
-  console.log(`📡 Network: ${network.name}`);
-  console.log(`📋 Deployment timestamp: ${new Date(deployment.chainId * 1000).toISOString()}\n`);
+  console.log(`\nNetwork: ${network.name}`);
+  console.log(`Deployment timestamp: ${new Date(deployment.timestamp * 1000).toISOString()}`);
 
   // Run verification checks
   const result = await runVerificationChecks(deployment);
@@ -50,11 +74,12 @@ async function main() {
   // Print results
   printVerificationResults(result);
 
+  // Exit with appropriate code
   if (result.passed) {
-    console.log("\n✅ All verification checks passed!");
+    console.log("\nVERIFICATION PASSED");
     process.exit(0);
   } else {
-    console.log("\n❌ Some verification checks failed!");
+    console.log("\nVERIFICATION FAILED");
     process.exit(1);
   }
 }
@@ -70,128 +95,183 @@ function loadDeployment(): DeploymentData | null {
   return JSON.parse(fs.readFileSync(latestFilepath, "utf-8"));
 }
 
-async function runVerificationChecks(
-  deployment: DeploymentData
-): Promise<VerificationResult> {
-  const checks: VerificationResult["checks"] = [];
+async function runVerificationChecks(deployment: DeploymentData): Promise<VerificationResult> {
+  const checks: VerificationCheck[] = [];
 
-  // 1. Verify contracts exist at addresses
-  console.log("📦 Checking contract deployments...");
+  // =========================================
+  // Contract Existence Checks
+  // =========================================
+  console.log("\n[1/6] Checking contract deployments...");
 
-  const issuerRegistryExists = await verifyContractExists(
-    deployment.contracts.issuerRegistry.proxy,
-    "IssuerRegistry"
-  );
-  checks.push(issuerRegistryExists);
+  checks.push(await verifyContractExists(deployment.contracts.issuerRegistry.proxy, "IssuerRegistry"));
+  checks.push(await verifyContractExists(deployment.contracts.claimToken.proxy, "ClaimToken"));
+  checks.push(await verifyContractExists(deployment.contracts.credentialLifecycleManager.proxy, "CredentialLifecycleManager"));
 
-  const claimTokenExists = await verifyContractExists(
-    deployment.contracts.claimToken.proxy,
-    "ClaimToken"
-  );
-  checks.push(claimTokenExists);
+  if (deployment.contracts.zkDisclosureEngine) {
+    checks.push(await verifyContractExists(deployment.contracts.zkDisclosureEngine.proxy, "ZKDisclosureEngine"));
+  }
 
-  const lifecycleManagerExists = await verifyContractExists(
-    deployment.contracts.credentialLifecycleManager.proxy,
-    "CredentialLifecycleManager"
-  );
-  checks.push(lifecycleManagerExists);
+  if (deployment.contracts.fieBridge) {
+    checks.push(await verifyContractExists(deployment.contracts.fieBridge.proxy, "FIEBridge"));
+  }
 
-  // 2. Verify proxy implementations
-  console.log("\n🔗 Checking proxy implementations...");
+  // =========================================
+  // Proxy Implementation Checks
+  // =========================================
+  console.log("\n[2/6] Checking proxy implementations...");
 
-  const issuerRegistryImpl = await verifyProxyImplementation(
+  checks.push(await verifyProxyImplementation(
     deployment.contracts.issuerRegistry.proxy,
     deployment.contracts.issuerRegistry.implementation,
     "IssuerRegistry"
-  );
-  checks.push(issuerRegistryImpl);
-
-  const claimTokenImpl = await verifyProxyImplementation(
+  ));
+  checks.push(await verifyProxyImplementation(
     deployment.contracts.claimToken.proxy,
     deployment.contracts.claimToken.implementation,
     "ClaimToken"
-  );
-  checks.push(claimTokenImpl);
-
-  const lifecycleManagerImpl = await verifyProxyImplementation(
+  ));
+  checks.push(await verifyProxyImplementation(
     deployment.contracts.credentialLifecycleManager.proxy,
     deployment.contracts.credentialLifecycleManager.implementation,
     "CredentialLifecycleManager"
-  );
-  checks.push(lifecycleManagerImpl);
+  ));
 
-  // 3. Verify cross-references
-  console.log("\n🔄 Checking cross-references...");
+  if (deployment.contracts.zkDisclosureEngine) {
+    checks.push(await verifyProxyImplementation(
+      deployment.contracts.zkDisclosureEngine.proxy,
+      deployment.contracts.zkDisclosureEngine.implementation,
+      "ZKDisclosureEngine"
+    ));
+  }
 
-  const claimTokenIssuerRegistry = await verifyClaimTokenIssuerRegistry(
+  if (deployment.contracts.fieBridge) {
+    checks.push(await verifyProxyImplementation(
+      deployment.contracts.fieBridge.proxy,
+      deployment.contracts.fieBridge.implementation,
+      "FIEBridge"
+    ));
+  }
+
+  // =========================================
+  // Cross-Reference Checks
+  // =========================================
+  console.log("\n[3/6] Checking cross-references...");
+
+  checks.push(await verifyClaimTokenIssuerRegistry(
     deployment.contracts.claimToken.proxy,
     deployment.contracts.issuerRegistry.proxy
-  );
-  checks.push(claimTokenIssuerRegistry);
+  ));
 
-  const lifecycleManagerClaimToken = await verifyLifecycleManagerClaimToken(
+  checks.push(await verifyLifecycleManagerReferences(
     deployment.contracts.credentialLifecycleManager.proxy,
-    deployment.contracts.claimToken.proxy
-  );
-  checks.push(lifecycleManagerClaimToken);
-
-  const lifecycleManagerIssuerRegistry = await verifyLifecycleManagerIssuerRegistry(
-    deployment.contracts.credentialLifecycleManager.proxy,
+    deployment.contracts.claimToken.proxy,
     deployment.contracts.issuerRegistry.proxy
-  );
-  checks.push(lifecycleManagerIssuerRegistry);
+  ));
 
-  // 4. Verify roles
-  console.log("\n👥 Checking roles...");
+  if (deployment.contracts.zkDisclosureEngine) {
+    checks.push(await verifyZKEngineClaimToken(
+      deployment.contracts.zkDisclosureEngine.proxy,
+      deployment.contracts.claimToken.proxy
+    ));
+  }
 
-  const adminRole = await verifyAdminRole(
+  if (deployment.contracts.fieBridge) {
+    checks.push(await verifyFIEBridgeLifecycleManager(
+      deployment.contracts.fieBridge.proxy,
+      deployment.contracts.credentialLifecycleManager.proxy
+    ));
+  }
+
+  // =========================================
+  // Role Checks
+  // =========================================
+  console.log("\n[4/6] Checking roles...");
+
+  checks.push(await verifyAdminRole(
     deployment.contracts.issuerRegistry.proxy,
     deployment.roles.admin
-  );
-  checks.push(adminRole);
+  ));
 
-  const credentialContractRole = await verifyCredentialContractRole(
+  checks.push(await verifyCredentialContractRole(
     deployment.contracts.issuerRegistry.proxy,
     deployment.contracts.claimToken.proxy
-  );
-  checks.push(credentialContractRole);
+  ));
 
-  const lifecycleManagerRole = await verifyLifecycleManagerRole(
+  checks.push(await verifyLifecycleManagerRole(
     deployment.contracts.claimToken.proxy,
     deployment.contracts.credentialLifecycleManager.proxy
-  );
-  checks.push(lifecycleManagerRole);
+  ));
 
-  // 5. Verify contract functionality
-  console.log("\n⚙️ Checking contract functionality...");
+  // =========================================
+  // ZK Verifier Checks
+  // =========================================
+  if (deployment.contracts.zkDisclosureEngine && deployment.contracts.verifiers) {
+    console.log("\n[5/6] Checking ZK verifiers...");
 
-  const claimTokenName = await verifyClaimTokenMetadata(
-    deployment.contracts.claimToken.proxy
-  );
-  checks.push(claimTokenName);
+    checks.push(await verifyZKVerifierRegistered(
+      deployment.contracts.zkDisclosureEngine.proxy,
+      "DATE_RANGE",
+      deployment.contracts.verifiers.dateRange
+    ));
 
-  const passed = checks.every((check) => check.passed);
+    checks.push(await verifyZKVerifierRegistered(
+      deployment.contracts.zkDisclosureEngine.proxy,
+      "VALUE_RANGE",
+      deployment.contracts.verifiers.valueRange
+    ));
 
-  return { passed, checks };
+    checks.push(await verifyZKVerifierRegistered(
+      deployment.contracts.zkDisclosureEngine.proxy,
+      "SET_MEMBERSHIP",
+      deployment.contracts.verifiers.setMembership
+    ));
+
+    checks.push(await verifyZKVerifierRegistered(
+      deployment.contracts.zkDisclosureEngine.proxy,
+      "COMPOUND",
+      deployment.contracts.verifiers.compoundProof
+    ));
+  } else {
+    console.log("\n[5/6] Skipping ZK verifier checks (not deployed)...");
+  }
+
+  // =========================================
+  // Functionality Checks
+  // =========================================
+  console.log("\n[6/6] Checking contract functionality...");
+
+  checks.push(await verifyClaimTokenMetadata(deployment.contracts.claimToken.proxy));
+
+  // Calculate summary
+  const summary = {
+    total: checks.length,
+    passed: checks.filter((c) => c.passed).length,
+    failed: checks.filter((c) => !c.passed).length,
+    critical: checks.filter((c) => !c.passed && c.critical).length,
+  };
+
+  // Overall pass only if no critical failures
+  const passed = summary.critical === 0;
+
+  return { passed, checks, summary };
 }
 
-async function verifyContractExists(
-  address: string,
-  name: string
-): Promise<VerificationResult["checks"][0]> {
+async function verifyContractExists(address: string, name: string): Promise<VerificationCheck> {
   try {
     const code = await ethers.provider.getCode(address);
     const exists = code !== "0x";
     return {
-      name: `${name} exists at ${address}`,
+      name: `${name} deployed`,
       passed: exists,
-      message: exists ? "Contract exists" : "No code at address",
+      message: exists ? `Contract at ${address}` : "No code at address",
+      critical: true,
     };
   } catch (error) {
     return {
-      name: `${name} exists at ${address}`,
+      name: `${name} deployed`,
       passed: false,
       message: `Error: ${error}`,
+      critical: true,
     };
   }
 }
@@ -200,7 +280,7 @@ async function verifyProxyImplementation(
   proxyAddress: string,
   expectedImpl: string,
   name: string
-): Promise<VerificationResult["checks"][0]> {
+): Promise<VerificationCheck> {
   try {
     // EIP-1967 implementation slot
     const implSlot = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
@@ -209,17 +289,17 @@ async function verifyProxyImplementation(
 
     const matches = actualImpl.toLowerCase() === expectedImpl.toLowerCase();
     return {
-      name: `${name} proxy implementation`,
+      name: `${name} implementation`,
       passed: matches,
-      message: matches
-        ? `Implementation: ${actualImpl}`
-        : `Expected ${expectedImpl}, got ${actualImpl}`,
+      message: matches ? `Implementation: ${actualImpl}` : `Expected ${expectedImpl}, got ${actualImpl}`,
+      critical: true,
     };
   } catch (error) {
     return {
-      name: `${name} proxy implementation`,
+      name: `${name} implementation`,
       passed: false,
       message: `Error: ${error}`,
+      critical: true,
     };
   }
 }
@@ -227,7 +307,7 @@ async function verifyProxyImplementation(
 async function verifyClaimTokenIssuerRegistry(
   claimTokenAddress: string,
   expectedRegistry: string
-): Promise<VerificationResult["checks"][0]> {
+): Promise<VerificationCheck> {
   try {
     const ClaimToken = await ethers.getContractFactory("ClaimToken");
     const claimToken = ClaimToken.attach(claimTokenAddress);
@@ -237,71 +317,99 @@ async function verifyClaimTokenIssuerRegistry(
     return {
       name: "ClaimToken.issuerRegistry",
       passed: matches,
-      message: matches
-        ? `Correct: ${actualRegistry}`
-        : `Expected ${expectedRegistry}, got ${actualRegistry}`,
+      message: matches ? `Correct: ${actualRegistry}` : `Expected ${expectedRegistry}`,
+      critical: true,
     };
   } catch (error) {
     return {
       name: "ClaimToken.issuerRegistry",
       passed: false,
       message: `Error: ${error}`,
+      critical: true,
     };
   }
 }
 
-async function verifyLifecycleManagerClaimToken(
+async function verifyLifecycleManagerReferences(
   lifecycleManagerAddress: string,
-  expectedClaimToken: string
-): Promise<VerificationResult["checks"][0]> {
+  expectedClaimToken: string,
+  expectedRegistry: string
+): Promise<VerificationCheck> {
   try {
-    const LifecycleManager = await ethers.getContractFactory(
-      "CredentialLifecycleManager"
-    );
+    const LifecycleManager = await ethers.getContractFactory("CredentialLifecycleManager");
     const lifecycleManager = LifecycleManager.attach(lifecycleManagerAddress);
+
     const actualClaimToken = await lifecycleManager.claimToken();
+    const actualRegistry = await lifecycleManager.issuerRegistry();
+
+    const claimTokenMatches = actualClaimToken.toLowerCase() === expectedClaimToken.toLowerCase();
+    const registryMatches = actualRegistry.toLowerCase() === expectedRegistry.toLowerCase();
+
+    const passed = claimTokenMatches && registryMatches;
+    return {
+      name: "LifecycleManager references",
+      passed,
+      message: passed ? "All references correct" : `ClaimToken: ${claimTokenMatches}, Registry: ${registryMatches}`,
+      critical: true,
+    };
+  } catch (error) {
+    return {
+      name: "LifecycleManager references",
+      passed: false,
+      message: `Error: ${error}`,
+      critical: true,
+    };
+  }
+}
+
+async function verifyZKEngineClaimToken(
+  zkEngineAddress: string,
+  expectedClaimToken: string
+): Promise<VerificationCheck> {
+  try {
+    const ZKEngine = await ethers.getContractFactory("ZKDisclosureEngine");
+    const zkEngine = ZKEngine.attach(zkEngineAddress);
+    const actualClaimToken = await zkEngine.claimToken();
 
     const matches = actualClaimToken.toLowerCase() === expectedClaimToken.toLowerCase();
     return {
-      name: "LifecycleManager.claimToken",
+      name: "ZKDisclosureEngine.claimToken",
       passed: matches,
-      message: matches
-        ? `Correct: ${actualClaimToken}`
-        : `Expected ${expectedClaimToken}, got ${actualClaimToken}`,
+      message: matches ? `Correct: ${actualClaimToken}` : `Expected ${expectedClaimToken}`,
+      critical: true,
     };
   } catch (error) {
     return {
-      name: "LifecycleManager.claimToken",
+      name: "ZKDisclosureEngine.claimToken",
       passed: false,
       message: `Error: ${error}`,
+      critical: true,
     };
   }
 }
 
-async function verifyLifecycleManagerIssuerRegistry(
-  lifecycleManagerAddress: string,
-  expectedRegistry: string
-): Promise<VerificationResult["checks"][0]> {
+async function verifyFIEBridgeLifecycleManager(
+  fieBridgeAddress: string,
+  expectedLifecycleManager: string
+): Promise<VerificationCheck> {
   try {
-    const LifecycleManager = await ethers.getContractFactory(
-      "CredentialLifecycleManager"
-    );
-    const lifecycleManager = LifecycleManager.attach(lifecycleManagerAddress);
-    const actualRegistry = await lifecycleManager.issuerRegistry();
+    const FIEBridge = await ethers.getContractFactory("FIEBridge");
+    const fieBridge = FIEBridge.attach(fieBridgeAddress);
+    const actualLifecycleManager = await fieBridge.lifecycleManager();
 
-    const matches = actualRegistry.toLowerCase() === expectedRegistry.toLowerCase();
+    const matches = actualLifecycleManager.toLowerCase() === expectedLifecycleManager.toLowerCase();
     return {
-      name: "LifecycleManager.issuerRegistry",
+      name: "FIEBridge.lifecycleManager",
       passed: matches,
-      message: matches
-        ? `Correct: ${actualRegistry}`
-        : `Expected ${expectedRegistry}, got ${actualRegistry}`,
+      message: matches ? `Correct: ${actualLifecycleManager}` : `Expected ${expectedLifecycleManager}`,
+      critical: true,
     };
   } catch (error) {
     return {
-      name: "LifecycleManager.issuerRegistry",
+      name: "FIEBridge.lifecycleManager",
       passed: false,
       message: `Error: ${error}`,
+      critical: true,
     };
   }
 }
@@ -309,7 +417,7 @@ async function verifyLifecycleManagerIssuerRegistry(
 async function verifyAdminRole(
   issuerRegistryAddress: string,
   expectedAdmin: string
-): Promise<VerificationResult["checks"][0]> {
+): Promise<VerificationCheck> {
   try {
     const IssuerRegistry = await ethers.getContractFactory("IssuerRegistry");
     const issuerRegistry = IssuerRegistry.attach(issuerRegistryAddress);
@@ -318,15 +426,17 @@ async function verifyAdminRole(
     const hasRole = await issuerRegistry.hasRole(DEFAULT_ADMIN_ROLE, expectedAdmin);
 
     return {
-      name: "Admin has DEFAULT_ADMIN_ROLE",
+      name: "Admin role granted",
       passed: hasRole,
-      message: hasRole ? `Admin ${expectedAdmin} has role` : `Admin missing role`,
+      message: hasRole ? `Admin: ${expectedAdmin}` : "Admin role not granted",
+      critical: true,
     };
   } catch (error) {
     return {
-      name: "Admin has DEFAULT_ADMIN_ROLE",
+      name: "Admin role granted",
       passed: false,
       message: `Error: ${error}`,
+      critical: true,
     };
   }
 }
@@ -334,7 +444,7 @@ async function verifyAdminRole(
 async function verifyCredentialContractRole(
   issuerRegistryAddress: string,
   claimTokenAddress: string
-): Promise<VerificationResult["checks"][0]> {
+): Promise<VerificationCheck> {
   try {
     const IssuerRegistry = await ethers.getContractFactory("IssuerRegistry");
     const issuerRegistry = IssuerRegistry.attach(issuerRegistryAddress);
@@ -345,13 +455,15 @@ async function verifyCredentialContractRole(
     return {
       name: "ClaimToken has CREDENTIAL_CONTRACT_ROLE",
       passed: hasRole,
-      message: hasRole ? "Role granted correctly" : "Role not granted",
+      message: hasRole ? "Role granted" : "Role not granted",
+      critical: true,
     };
   } catch (error) {
     return {
       name: "ClaimToken has CREDENTIAL_CONTRACT_ROLE",
       passed: false,
       message: `Error: ${error}`,
+      critical: true,
     };
   }
 }
@@ -359,7 +471,7 @@ async function verifyCredentialContractRole(
 async function verifyLifecycleManagerRole(
   claimTokenAddress: string,
   lifecycleManagerAddress: string
-): Promise<VerificationResult["checks"][0]> {
+): Promise<VerificationCheck> {
   try {
     const ClaimToken = await ethers.getContractFactory("ClaimToken");
     const claimToken = ClaimToken.attach(claimTokenAddress);
@@ -370,20 +482,49 @@ async function verifyLifecycleManagerRole(
     return {
       name: "LifecycleManager has LIFECYCLE_MANAGER_ROLE",
       passed: hasRole,
-      message: hasRole ? "Role granted correctly" : "Role not granted",
+      message: hasRole ? "Role granted" : "Role not granted",
+      critical: true,
     };
   } catch (error) {
     return {
       name: "LifecycleManager has LIFECYCLE_MANAGER_ROLE",
       passed: false,
       message: `Error: ${error}`,
+      critical: true,
     };
   }
 }
 
-async function verifyClaimTokenMetadata(
-  claimTokenAddress: string
-): Promise<VerificationResult["checks"][0]> {
+async function verifyZKVerifierRegistered(
+  zkEngineAddress: string,
+  disclosureTypeName: string,
+  expectedVerifier: string
+): Promise<VerificationCheck> {
+  try {
+    const ZKEngine = await ethers.getContractFactory("ZKDisclosureEngine");
+    const zkEngine = ZKEngine.attach(zkEngineAddress);
+
+    const disclosureType = ethers.keccak256(ethers.toUtf8Bytes(disclosureTypeName));
+    const registeredVerifier = await zkEngine.verifiers(disclosureType);
+
+    const matches = registeredVerifier.toLowerCase() === expectedVerifier.toLowerCase();
+    return {
+      name: `${disclosureTypeName} verifier registered`,
+      passed: matches,
+      message: matches ? `Verifier: ${registeredVerifier}` : `Expected ${expectedVerifier}, got ${registeredVerifier}`,
+      critical: false,
+    };
+  } catch (error) {
+    return {
+      name: `${disclosureTypeName} verifier registered`,
+      passed: false,
+      message: `Error: ${error}`,
+      critical: false,
+    };
+  }
+}
+
+async function verifyClaimTokenMetadata(claimTokenAddress: string): Promise<VerificationCheck> {
   try {
     const ClaimToken = await ethers.getContractFactory("ClaimToken");
     const claimToken = ClaimToken.attach(claimTokenAddress);
@@ -396,15 +537,15 @@ async function verifyClaimTokenMetadata(
     return {
       name: "ClaimToken metadata",
       passed: correct,
-      message: correct
-        ? `Name: ${name}, Symbol: ${symbol}`
-        : `Expected SovereignCredential/SCRED, got ${name}/${symbol}`,
+      message: correct ? `Name: ${name}, Symbol: ${symbol}` : `Expected SovereignCredential/SCRED, got ${name}/${symbol}`,
+      critical: false,
     };
   } catch (error) {
     return {
       name: "ClaimToken metadata",
       passed: false,
       message: `Error: ${error}`,
+      critical: false,
     };
   }
 }
@@ -414,17 +555,38 @@ function printVerificationResults(result: VerificationResult): void {
   console.log("VERIFICATION RESULTS");
   console.log("=".repeat(60));
 
-  for (const check of result.checks) {
-    const icon = check.passed ? "✅" : "❌";
-    console.log(`${icon} ${check.name}`);
-    console.log(`   ${check.message}`);
+  // Group by status
+  const passed = result.checks.filter((c) => c.passed);
+  const failed = result.checks.filter((c) => !c.passed);
+
+  console.log("\nPassed Checks:");
+  for (const check of passed) {
+    console.log(`  [PASS] ${check.name}`);
+    console.log(`         ${check.message}`);
   }
 
+  if (failed.length > 0) {
+    console.log("\nFailed Checks:");
+    for (const check of failed) {
+      const label = check.critical ? "[FAIL*]" : "[FAIL] ";
+      console.log(`  ${label} ${check.name}`);
+      console.log(`         ${check.message}`);
+    }
+  }
+
+  console.log("\n" + "-".repeat(60));
+  console.log("SUMMARY");
+  console.log("-".repeat(60));
+  console.log(`Total Checks: ${result.summary.total}`);
+  console.log(`Passed: ${result.summary.passed}`);
+  console.log(`Failed: ${result.summary.failed}`);
+  if (result.summary.critical > 0) {
+    console.log(`Critical Failures: ${result.summary.critical}`);
+  }
   console.log("=".repeat(60));
-  console.log(`Total: ${result.checks.filter((c) => c.passed).length}/${result.checks.length} checks passed`);
 }
 
 main().catch((error) => {
-  console.error("❌ Verification failed:", error);
+  console.error("Verification failed:", error);
   process.exit(1);
 });
