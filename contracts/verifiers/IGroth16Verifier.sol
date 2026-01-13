@@ -73,3 +73,45 @@ interface IAgeThresholdVerifier {
         uint[4] calldata _pubSignals
     ) external view returns (bool);
 }
+
+/**
+ * @title ICompoundProofVerifier
+ * @notice Interface for CompoundProof circuit verifier (2 disclosures)
+ * @dev Public signals: [commitment, types[2], params[2][4]] = 11 signals
+ */
+interface ICompoundProofVerifier {
+    function verifyProof(
+        uint[2] calldata _pA,
+        uint[2][2] calldata _pB,
+        uint[2] calldata _pC,
+        uint[11] calldata _pubSignals
+    ) external view returns (bool);
+}
+
+/**
+ * @title ICompoundProof3Verifier
+ * @notice Interface for CompoundProof circuit verifier (3 disclosures)
+ * @dev Public signals: [commitment, types[3], params[3][4]] = 16 signals
+ */
+interface ICompoundProof3Verifier {
+    function verifyProof(
+        uint[2] calldata _pA,
+        uint[2][2] calldata _pB,
+        uint[2] calldata _pC,
+        uint[16] calldata _pubSignals
+    ) external view returns (bool);
+}
+
+/**
+ * @title ICompoundProof4Verifier
+ * @notice Interface for CompoundProof circuit verifier (4 disclosures)
+ * @dev Public signals: [commitment, types[4], params[4][4]] = 21 signals
+ */
+interface ICompoundProof4Verifier {
+    function verifyProof(
+        uint[2] calldata _pA,
+        uint[2][2] calldata _pB,
+        uint[2] calldata _pC,
+        uint[21] calldata _pubSignals
+    ) external view returns (bool);
+}
