@@ -238,11 +238,14 @@ const isValidProof = await zkEngine.verifyAgeProof(proof, tokenId, 18, "GREATER_
 ## Roadmap
 
 - [x] Core specification
-- [ ] ClaimToken contract
-- [ ] IssuerRegistry contract
-- [ ] Basic lifecycle management
-- [ ] ZK disclosure circuits (age, range)
-- [ ] FIE bridge integration
+- [x] ClaimToken contract
+- [x] IssuerRegistry contract
+- [x] Basic lifecycle management
+- [x] ZK disclosure circuits (age, range, set membership)
+- [x] FIE bridge integration
+- [x] TypeScript SDK
+- [x] Deployment scripts
+- [x] Comprehensive test suite
 - [ ] Frontend credential wallet
 - [ ] Issuer onboarding portal
 - [ ] Mobile verification app
@@ -277,4 +280,4 @@ CC0 1.0 Universal - Public Domain Dedication
 
 ---
 
-**Version:** 0.1.0-alpha | **Last Updated:** 2026-01-11
+**Version:** 0.1.0-alpha | **Last Updated:** 2026-01-23

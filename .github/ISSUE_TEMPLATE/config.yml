@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/kase1111-hash/sovereign-credential/tree/main/docs
+    about: Check out the documentation before opening an issue
+  - name: Security Issues
+    url: https://github.com/kase1111-hash/sovereign-credential/blob/main/docs/SECURITY.md
+    about: Please report security vulnerabilities following our security policy
