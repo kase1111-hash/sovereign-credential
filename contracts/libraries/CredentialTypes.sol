@@ -305,6 +305,9 @@ library CredentialTypes {
     /// @notice Maximum encrypted payload size (32KB as per Spec C-05)
     uint256 internal constant MAX_PAYLOAD_SIZE = 32 * 1024;
 
+    /// @notice Maximum batch size for batch operations (prevent DoS via gas exhaustion)
+    uint256 internal constant MAX_BATCH_SIZE = 50;
+
     /// @notice Default executor access period (90 days)
     uint64 internal constant DEFAULT_EXECUTOR_PERIOD = 90 days;
 

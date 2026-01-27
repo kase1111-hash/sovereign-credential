@@ -328,7 +328,19 @@ contract IssuerRegistry is
                 newScore = MAX_REPUTATION;
             }
         } else {
-            uint256 absDelta = uint256(-delta);
+            // Handle negative delta safely
+            // Note: delta == type(int256).min would overflow when negated,
+            // but since MAX_REPUTATION is 10000, such extreme values would
+            // always result in newScore = 0 anyway
+            uint256 absDelta;
+            if (delta == type(int256).min) {
+                // Special case: can't safely negate type(int256).min
+                // This value is so large it will always zero out the score
+                absDelta = type(uint256).max;
+            } else {
+                absDelta = uint256(-delta);
+            }
+
             if (absDelta >= currentScore) {
                 newScore = 0;
             } else {

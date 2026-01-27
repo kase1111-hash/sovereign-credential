@@ -65,7 +65,8 @@ contract ZKDisclosureEngine is
     mapping(bytes32 => address) public verifiers;
 
     /// @notice Mapping of proof hash to used status (replay prevention)
-    mapping(bytes32 => bool) public usedProofs;
+    /// @dev Private to prevent enumeration of used proofs - use isProofUsed() for queries
+    mapping(bytes32 => bool) private __usedProofs;
 
     /// @notice Reference to the ClaimToken contract
     IClaimToken public claimToken;
@@ -157,7 +158,7 @@ contract ZKDisclosureEngine is
 
         // 2. Check replay prevention
         bytes32 proofHash = keccak256(proof);
-        if (usedProofs[proofHash]) {
+        if (_usedProofs[proofHash]) {
             revert Errors.ProofReplayed(proofHash);
         }
 
@@ -204,7 +205,7 @@ contract ZKDisclosureEngine is
 
         // 7. Mark proof as used if valid
         if (valid) {
-            usedProofs[proofHash] = true;
+            _usedProofs[proofHash] = true;
             emit ProofVerified(tokenId, DISCLOSURE_AGE_THRESHOLD, msg.sender);
         } else {
             emit ProofRejected(tokenId, DISCLOSURE_AGE_THRESHOLD, "Proof invalid");
@@ -234,7 +235,7 @@ contract ZKDisclosureEngine is
 
         // 2. Check replay prevention
         bytes32 proofHash = keccak256(proof);
-        if (usedProofs[proofHash]) {
+        if (_usedProofs[proofHash]) {
             revert Errors.ProofReplayed(proofHash);
         }
 
@@ -278,7 +279,7 @@ contract ZKDisclosureEngine is
 
         // 7. Mark proof as used if valid
         if (valid) {
-            usedProofs[proofHash] = true;
+            _usedProofs[proofHash] = true;
             emit ProofVerified(tokenId, DISCLOSURE_DATE_RANGE, msg.sender);
         } else {
             emit ProofRejected(tokenId, DISCLOSURE_DATE_RANGE, "Proof invalid");
@@ -309,7 +310,7 @@ contract ZKDisclosureEngine is
 
         // 2. Check replay prevention
         bytes32 proofHash = keccak256(proof);
-        if (usedProofs[proofHash]) {
+        if (_usedProofs[proofHash]) {
             revert Errors.ProofReplayed(proofHash);
         }
 
@@ -353,7 +354,7 @@ contract ZKDisclosureEngine is
 
         // 7. Mark proof as used if valid
         if (valid) {
-            usedProofs[proofHash] = true;
+            _usedProofs[proofHash] = true;
             emit ProofVerified(tokenId, DISCLOSURE_VALUE_RANGE, msg.sender);
         } else {
             emit ProofRejected(tokenId, DISCLOSURE_VALUE_RANGE, "Proof invalid");
@@ -383,7 +384,7 @@ contract ZKDisclosureEngine is
 
         // 2. Check replay prevention
         bytes32 proofHash = keccak256(proof);
-        if (usedProofs[proofHash]) {
+        if (_usedProofs[proofHash]) {
             revert Errors.ProofReplayed(proofHash);
         }
 
@@ -424,7 +425,7 @@ contract ZKDisclosureEngine is
 
         // 7. Mark proof as used if valid
         if (valid) {
-            usedProofs[proofHash] = true;
+            _usedProofs[proofHash] = true;
             emit ProofVerified(tokenId, DISCLOSURE_SET_MEMBERSHIP, msg.sender);
         } else {
             emit ProofRejected(tokenId, DISCLOSURE_SET_MEMBERSHIP, "Proof invalid");
@@ -452,7 +453,7 @@ contract ZKDisclosureEngine is
 
         // 2. Check replay prevention
         bytes32 proofHash = keccak256(proof);
-        if (usedProofs[proofHash]) {
+        if (_usedProofs[proofHash]) {
             revert Errors.ProofReplayed(proofHash);
         }
 
@@ -488,7 +489,7 @@ contract ZKDisclosureEngine is
 
         // 7. Mark proof as used if valid
         if (valid) {
-            usedProofs[proofHash] = true;
+            _usedProofs[proofHash] = true;
             emit ProofVerified(tokenId, DISCLOSURE_EXISTENCE, msg.sender);
         } else {
             emit ProofRejected(tokenId, DISCLOSURE_EXISTENCE, "Proof invalid");
@@ -518,7 +519,7 @@ contract ZKDisclosureEngine is
 
         // 2. Check replay prevention
         bytes32 proofHash = keccak256(proof);
-        if (usedProofs[proofHash]) {
+        if (_usedProofs[proofHash]) {
             revert Errors.ProofReplayed(proofHash);
         }
 
@@ -588,7 +589,7 @@ contract ZKDisclosureEngine is
 
         // 7. Mark proof as used if valid
         if (valid) {
-            usedProofs[proofHash] = true;
+            _usedProofs[proofHash] = true;
             emit ProofVerified(tokenId, verifierType, msg.sender);
         } else {
             emit ProofRejected(tokenId, verifierType, "Proof invalid");
@@ -746,7 +747,7 @@ contract ZKDisclosureEngine is
     ) external override nonReentrant returns (bool valid) {
         // Check replay prevention
         bytes32 proofHash = keccak256(request.proof);
-        if (usedProofs[proofHash]) {
+        if (_usedProofs[proofHash]) {
             revert Errors.ProofReplayed(proofHash);
         }
 
@@ -782,7 +783,7 @@ contract ZKDisclosureEngine is
         valid = IGroth16Verifier(verifier).verifyProof(pA, pB, pC, pubSignals);
 
         if (valid) {
-            usedProofs[proofHash] = true;
+            _usedProofs[proofHash] = true;
             emit ProofVerified(request.credentialId, request.disclosureType, msg.sender);
         }
 
@@ -797,7 +798,7 @@ contract ZKDisclosureEngine is
      * @inheritdoc IZKDisclosureEngine
      */
     function isProofUsed(bytes32 proofHash) external view override returns (bool used) {
-        return usedProofs[proofHash];
+        return _usedProofs[proofHash];
     }
 
     /**
