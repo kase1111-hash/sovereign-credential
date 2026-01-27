@@ -173,6 +173,9 @@ library Errors {
     /// @notice Empty array not allowed
     error EmptyArray();
 
+    /// @notice Batch size exceeds maximum allowed
+    error BatchSizeTooLarge(uint256 size, uint256 maxSize);
+
     /// @notice Value out of allowed range
     error OutOfRange(uint256 value, uint256 min, uint256 max);
 

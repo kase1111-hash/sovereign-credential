@@ -5,10 +5,9 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-// Default private key for local development (DO NOT USE IN PRODUCTION)
-const PRIVATE_KEY =
-  process.env.PRIVATE_KEY ||
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+// Private key for deployments - MUST be set via environment variable for non-local networks
+// No fallback provided to prevent accidental use of known keys in production
+const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 
 // RPC URLs
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "";

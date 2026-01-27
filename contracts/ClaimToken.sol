@@ -192,6 +192,9 @@ contract ClaimToken is
         if (requests.length == 0) {
             revert Errors.EmptyArray();
         }
+        if (requests.length > CredentialTypes.MAX_BATCH_SIZE) {
+            revert Errors.BatchSizeTooLarge(requests.length, CredentialTypes.MAX_BATCH_SIZE);
+        }
 
         tokenIds = new uint256[](requests.length);
 

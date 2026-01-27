@@ -438,7 +438,12 @@ export class ProofGenerator {
       throw new Error(`Verification key not found: ${paths.vkey}`);
     }
 
-    const vkey = JSON.parse(readFileSync(paths.vkey, "utf-8"));
+    let vkey: object;
+    try {
+      vkey = JSON.parse(readFileSync(paths.vkey, "utf-8"));
+    } catch (error) {
+      throw new Error(`Failed to parse verification key at ${paths.vkey}: ${error instanceof Error ? error.message : "invalid JSON"}`);
+    }
     this.verificationKeys.set(disclosureType, vkey);
 
     return vkey;

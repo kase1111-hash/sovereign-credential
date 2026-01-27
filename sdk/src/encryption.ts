@@ -26,7 +26,15 @@ export function generateSalt(): bigint {
 
 /**
  * Derive a simple shared secret from private and public keys
- * Note: In production, use proper ECDH key agreement
+ *
+ * WARNING: This is a simplified implementation for development/testing.
+ * TODO: For production, replace with proper secp256k1 ECDH key agreement
+ * using libraries like 'ethereum-cryptography' or '@noble/secp256k1':
+ *
+ * ```typescript
+ * import { getSharedSecret } from '@noble/secp256k1';
+ * const sharedSecret = getSharedSecret(privateKey, publicKey);
+ * ```
  */
 function deriveSharedSecret(privateKey: string, publicKey: string): Uint8Array {
   const combined = concat([getBytes(privateKey), getBytes(publicKey)]);
@@ -45,13 +53,23 @@ function deriveEncryptionKey(sharedSecret: Uint8Array, iv: Uint8Array): Uint8Arr
 // Encryption/Decryption
 // ============================================
 
+// Maximum payload size (32KB as per SPEC.md Constraint C-05)
+const MAX_PAYLOAD_SIZE = 32 * 1024;
+
 /**
  * Encrypt a credential payload using ECIES-like scheme
+ *
+ * WARNING: This implementation uses a simplified key derivation for development.
+ * TODO: For production, implement proper secp256k1 ECIES:
+ * 1. Generate ephemeral keypair using secp256k1
+ * 2. Compute shared secret via ECDH
+ * 3. Derive encryption key using HKDF
  *
  * @param payload - The payload object to encrypt
  * @param recipientPublicKey - Public key of the recipient (hex)
  * @param ephemeralPrivateKey - Optional ephemeral private key for deterministic encryption
  * @returns Encrypted payload structure
+ * @throws Error if payload exceeds maximum size
  */
 export function encryptPayload(
   payload: Record<string, unknown>,
@@ -61,9 +79,15 @@ export function encryptPayload(
   const payloadStr = JSON.stringify(payload);
   const payloadBytes = Buffer.from(payloadStr, "utf8");
 
+  // Validate payload size (SPEC.md Constraint C-05: max 32KB)
+  if (payloadBytes.length > MAX_PAYLOAD_SIZE) {
+    throw new Error(`Payload size ${payloadBytes.length} exceeds maximum allowed size of ${MAX_PAYLOAD_SIZE} bytes`);
+  }
+
   // Generate ephemeral key if not provided
   const ephemeralKey = ephemeralPrivateKey || hexlify(randomBytes(32));
-  // In a real implementation, derive public key from private key using secp256k1
+  // WARNING: Simplified implementation - in production, derive public key using secp256k1
+  // TODO: Use proper key derivation: const ephemeralPublicKey = getPublicKey(ephemeralKey);
   const ephemeralPublicKey = keccak256(getBytes(ephemeralKey));
 
   // Generate IV
@@ -96,6 +120,7 @@ export function encryptPayload(
  * @param encrypted - Encrypted payload structure
  * @param recipientPrivateKey - Private key of the recipient (hex)
  * @returns Decrypted payload as JSON object
+ * @throws Error if decryption fails or payload is malformed
  */
 export function decryptPayload(
   encrypted: EncryptedPayload,
@@ -114,15 +139,25 @@ export function decryptPayload(
   const ciphertext = encryptedBytes.slice(0, -16);
 
   // Decrypt using AES-256-GCM
-  const decipher = createDecipheriv("aes-256-gcm", Buffer.from(encryptionKey), Buffer.from(ivBytes));
-  decipher.setAuthTag(Buffer.from(authTag));
+  let decrypted: Buffer;
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", Buffer.from(encryptionKey), Buffer.from(ivBytes));
+    decipher.setAuthTag(Buffer.from(authTag));
 
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(ciphertext)),
-    decipher.final(),
-  ]);
+    decrypted = Buffer.concat([
+      decipher.update(Buffer.from(ciphertext)),
+      decipher.final(),
+    ]);
+  } catch (error) {
+    throw new Error(`Decryption failed: ${error instanceof Error ? error.message : "authentication or key mismatch"}`);
+  }
 
-  return JSON.parse(decrypted.toString("utf8"));
+  // Parse JSON with error handling
+  try {
+    return JSON.parse(decrypted.toString("utf8"));
+  } catch (error) {
+    throw new Error(`Failed to parse decrypted payload as JSON: ${error instanceof Error ? error.message : "invalid JSON"}`);
+  }
 }
 
 // ============================================
