@@ -229,7 +229,7 @@ contract CredentialLifecycleManager is
         }
 
         // Verify signature
-        _verifyRenewalSignature(tokenId, newExpiry, cred.issuer, signature);
+        _verifyRenewalSignature(tokenId, newExpiry, cred.issuer, cred.claimType, signature);
 
         // New expiry must be in the future
         if (newExpiry <= block.timestamp) {
@@ -835,9 +835,9 @@ contract CredentialLifecycleManager is
                 revert Errors.NotHolder(from, holder);
             }
 
-            // Note: Actual transfer would call claimToken.transferFrom
+            // Execute the transfer via ClaimToken
             // This requires the caller to have approved this contract
-            // or for this contract to have special transfer rights
+            claimToken.safeTransferFrom(from, to, tokenIds[i]);
         }
 
         emit BatchTransferred(tokenIds, from, to);
@@ -1037,6 +1037,7 @@ contract CredentialLifecycleManager is
         uint256 tokenId,
         uint64 newExpiry,
         address expectedIssuer,
+        bytes32 claimType,
         bytes calldata signature
     ) internal {
         // Create message hash
@@ -1061,8 +1062,8 @@ contract CredentialLifecycleManager is
         bytes32 ethSignedHash = messageHash.toEthSignedMessageHash();
         address signer = ethSignedHash.recover(signature);
 
-        // Verify signer is authorized for the issuer
-        (bool authorized, address principal) = issuerRegistry.isAuthorizedSigner(signer, bytes32(0));
+        // Verify signer is authorized for the issuer and claim type
+        (bool authorized, address principal) = issuerRegistry.isAuthorizedSigner(signer, claimType);
         if (!authorized || (principal != expectedIssuer && signer != expectedIssuer)) {
             revert Errors.InvalidSignature();
         }
