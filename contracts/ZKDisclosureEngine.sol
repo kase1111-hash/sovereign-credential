@@ -200,6 +200,18 @@ contract ZKDisclosureEngine is
             return false;
         }
 
+        // Validate timestamp is within acceptable range (5 minutes tolerance)
+        // This prevents proofs with manipulated timestamps
+        uint256 proofTimestamp = pubSignals[2];
+        if (proofTimestamp > block.timestamp + 300) {
+            emit ProofRejected(tokenId, DISCLOSURE_AGE_THRESHOLD, "Timestamp in future");
+            return false;
+        }
+        if (proofTimestamp < block.timestamp - 300) {
+            emit ProofRejected(tokenId, DISCLOSURE_AGE_THRESHOLD, "Timestamp too old");
+            return false;
+        }
+
         // 6. Call verifier
         valid = IAgeThresholdVerifier(verifier).verifyProof(pA, pB, pC, pubSignals);
 

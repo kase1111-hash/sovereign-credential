@@ -68,6 +68,9 @@ contract ClaimToken is
     /// @notice Address of the Lifecycle Manager
     address public lifecycleManager;
 
+    /// @notice Address of the FIE Bridge
+    address public fieBridge;
+
     /// @notice Mapping of token ID to credential data
     mapping(uint256 => CredentialData) private _credentials;
 
@@ -364,9 +367,14 @@ contract ClaimToken is
 
         CredentialData storage cred = _credentials[tokenId];
 
-        // Check caller is the issuer or a delegate
-        (bool authorized, ) = issuerRegistry.isAuthorizedSigner(msg.sender, cred.claimType);
+        // Check caller is the issuer or a delegate of the credential's issuer
+        (bool authorized, address principal) = issuerRegistry.isAuthorizedSigner(msg.sender, cred.claimType);
         if (!authorized) {
+            revert Errors.UnauthorizedIssuer(msg.sender, cred.claimType);
+        }
+        // Verify the principal matches the credential's issuer
+        // This ensures only the original issuer or their delegates can revoke
+        if (principal != cred.issuer && msg.sender != cred.issuer) {
             revert Errors.UnauthorizedIssuer(msg.sender, cred.claimType);
         }
 
@@ -397,9 +405,13 @@ contract ClaimToken is
 
         CredentialData storage cred = _credentials[tokenId];
 
-        // Check caller is the issuer or a delegate
-        (bool authorized, ) = issuerRegistry.isAuthorizedSigner(msg.sender, cred.claimType);
+        // Check caller is the issuer or a delegate of the credential's issuer
+        (bool authorized, address principal) = issuerRegistry.isAuthorizedSigner(msg.sender, cred.claimType);
         if (!authorized) {
+            revert Errors.UnauthorizedIssuer(msg.sender, cred.claimType);
+        }
+        // Verify the principal matches the credential's issuer
+        if (principal != cred.issuer && msg.sender != cred.issuer) {
             revert Errors.UnauthorizedIssuer(msg.sender, cred.claimType);
         }
 
@@ -421,9 +433,13 @@ contract ClaimToken is
 
         CredentialData storage cred = _credentials[tokenId];
 
-        // Check caller is the issuer or a delegate
-        (bool authorized, ) = issuerRegistry.isAuthorizedSigner(msg.sender, cred.claimType);
+        // Check caller is the issuer or a delegate of the credential's issuer
+        (bool authorized, address principal) = issuerRegistry.isAuthorizedSigner(msg.sender, cred.claimType);
         if (!authorized) {
+            revert Errors.UnauthorizedIssuer(msg.sender, cred.claimType);
+        }
+        // Verify the principal matches the credential's issuer
+        if (principal != cred.issuer && msg.sender != cred.issuer) {
             revert Errors.UnauthorizedIssuer(msg.sender, cred.claimType);
         }
 
@@ -878,6 +894,10 @@ contract ClaimToken is
         if (bridge != address(0)) {
             _grantRole(FIE_BRIDGE_ROLE, bridge);
         }
+        if (fieBridge != address(0)) {
+            _revokeRole(FIE_BRIDGE_ROLE, fieBridge);
+        }
+        fieBridge = bridge;
     }
 
     // ============================================
