@@ -4,6 +4,21 @@
 **Auditor:** Claude Code
 **Version:** 0.1.0-alpha
 **Commit:** 08ab0b6
+**Fixes Applied:** 1dc0a8d
+
+---
+
+## Fixes Applied
+
+The following issues identified in this audit have been fixed in commit `1dc0a8d`:
+
+| Issue ID | Description | Status |
+|----------|-------------|--------|
+| CLM-001 | Renewal signature validation using bytes32(0) instead of claimType | **FIXED** |
+| ZK-001 | Missing timestamp validation in age threshold verification | **FIXED** |
+| SC-001 | Revocation authorization too permissive (cross-issuer) | **FIXED** |
+| SC-003 | setFIEBridge doesn't revoke old role | **FIXED** |
+| CLM-002 | batchTransfer doesn't execute actual transfers | **FIXED** |
 
 ---
 
