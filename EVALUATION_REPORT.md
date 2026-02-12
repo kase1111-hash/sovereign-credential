@@ -43,7 +43,7 @@ Core contracts are implemented and tested. But critical gaps remain:
 
 1. **Encryption is fake** (`sdk/src/encryption.ts:39-42`): `deriveSharedSecret()` concatenates keys and hashes them with keccak256 instead of performing actual secp256k1 ECDH. This means encrypted credential payloads are not actually secure. For a project whose core promise is cryptographic sovereignty, this is a significant gap.
 
-2. **`batchTransfer()` is a no-op** (`contracts/CredentialLifecycleManager.sol:818`): The function validates inputs and emits an event but never calls any actual transfer function on ClaimToken. The audit report marks this as "FIXED" (`AUDIT_REPORT.md:21`) but the code still just emits events.
+2. ~~**`batchTransfer()` is a no-op**~~ — **Correction:** `batchTransfer()` at `CredentialLifecycleManager.sol:840` does call `claimToken.safeTransferFrom()`. The audit report's "FIXED" status for CLM-002 is accurate. Initial review was in error.
 
 3. **No CI/CD**: Zero GitHub Actions workflows. For a smart contract project handling verifiable credentials, the absence of automated testing in CI is a process gap.
 
@@ -61,7 +61,7 @@ Hardhat + OpenZeppelin + Circom + snarkjs is the canonical stack for this type o
 - `int256.min` edge case handled in reputation adjustment — shows attention to detail
 
 **Signs of rushed/inconsistent work:**
-- The audit report (`AUDIT_REPORT.md`) claims all 5 issues are "FIXED" but CLM-002 (`batchTransfer`) is demonstrably not fixed in the current code
+- ~~The audit report claims CLM-002 is not fixed~~ — **Correction:** CLM-002 is properly fixed; `batchTransfer` calls `safeTransferFrom` at line 840
 - The SDK encryption module has 6 separate TODO/WARNING comments acknowledging it's not production-ready
 - No `.github/workflows/` directory — no CI exists
 
@@ -110,8 +110,7 @@ Hardhat + OpenZeppelin + Circom + snarkjs is the canonical stack for this type o
 - **Replace the placeholder encryption** (`sdk/src/encryption.ts`). This is the single highest-priority fix. Use `@noble/secp256k1` for ECDH and HKDF as the existing TODOs suggest. Without real encryption, the entire "sovereign" premise is undermined.
 - **CI/CD pipeline** — Add GitHub Actions for `hardhat compile`, `hardhat test`, and `solidity-coverage` on every push. For a smart contract project, this is table stakes.
 - **Testnet deployment** — Run `scripts/deploy-testnet.ts` on Sepolia and publish the contract addresses. Prove the system works on a real network.
-- **Fix `batchTransfer()`** or remove it from the interface. A function that emits "BatchTransferred" without transferring anything is worse than not having the function.
-- **Fix the audit report** (`AUDIT_REPORT.md:21`) — CLM-002 is marked FIXED but isn't. Accurate audit trails matter.
+- ~~**Fix `batchTransfer()`**~~ — **Correction:** Already properly fixed at `CredentialLifecycleManager.sol:840` with `safeTransferFrom`. Audit report is accurate.
 
 **FINAL VERDICT:** Continue
 
