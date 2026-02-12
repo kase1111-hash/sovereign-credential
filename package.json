@@ -8,6 +8,7 @@
     "test": "hardhat test",
     "test:coverage": "hardhat coverage",
     "test:gas": "REPORT_GAS=true hardhat test",
+    "test:gas:benchmark": "REPORT_GAS=true hardhat test test/gas-benchmark.test.ts",
     "node": "hardhat node",
     "deploy": "hardhat run scripts/deploy.ts",
     "deploy:testnet": "hardhat run scripts/deploy-testnet.ts --network sepolia",

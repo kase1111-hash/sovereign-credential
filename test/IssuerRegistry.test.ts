@@ -96,7 +96,7 @@ describe("IssuerRegistry", function () {
     it("should have correct constants", async function () {
       const { issuerRegistry } = await loadFixture(deployIssuerRegistryFixture);
 
-      expect(await issuerRegistry.MIN_REPUTATION()).to.equal(1000n);
+      expect(await issuerRegistry.MIN_REPUTATION()).to.equal(0n);
       expect(await issuerRegistry.MAX_REPUTATION()).to.equal(10000n);
       expect(await issuerRegistry.INITIAL_REPUTATION()).to.equal(5000n);
     });
@@ -461,16 +461,16 @@ describe("IssuerRegistry", function () {
       expect(await issuerRegistry.getReputation(issuer1.address)).to.equal(0n);
     });
 
-    it("should prevent authorization when below minimum reputation", async function () {
+    it("should allow authorization regardless of reputation in v1.0", async function () {
       const { issuerRegistry, arbiter, issuer1 } = await loadFixture(deployWithIssuersFixture);
 
-      // Reduce reputation below minimum (1000)
-      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, -4500, "Issues");
+      // Reduce reputation to zero — v1.0 does not gate on reputation
+      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, -5000, "Issues");
 
-      // Reputation is now 500, below minimum 1000
-      expect(await issuerRegistry.getReputation(issuer1.address)).to.equal(500n);
+      expect(await issuerRegistry.getReputation(issuer1.address)).to.equal(0n);
+      // v1.0: reputation does not affect authorization; only isActive matters
       expect(await issuerRegistry.isAuthorized(issuer1.address, ClaimTypes.LICENSE_OPERATOR)).to.be
-        .false;
+        .true;
     });
 
     it("should check reputation threshold", async function () {
@@ -597,7 +597,7 @@ describe("IssuerRegistry", function () {
     it("should return minimum reputation constant", async function () {
       const { issuerRegistry } = await loadFixture(deployIssuerRegistryFixture);
 
-      expect(await issuerRegistry.getMinReputation()).to.equal(1000n);
+      expect(await issuerRegistry.getMinReputation()).to.equal(0n);
     });
   });
 

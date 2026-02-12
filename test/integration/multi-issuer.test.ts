@@ -23,7 +23,7 @@ describe("Multi-Issuer Integration", function () {
 
   const ONE_YEAR = 365 * 24 * 60 * 60;
   const INITIAL_REPUTATION = 5000n;
-  const MIN_REPUTATION = 1000n;
+  const MIN_REPUTATION = 0n; // v1.0: reputation gating disabled
   const MAX_REPUTATION = 10000n;
 
   // ============================================

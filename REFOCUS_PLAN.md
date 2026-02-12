@@ -217,25 +217,25 @@ Inheritance touches core contracts in these specific places:
 ## Success Criteria
 
 **Phase 1 complete when:**
-- [ ] `sdk/src/encryption.ts` uses real secp256k1 ECDH (no WARNING/TODO comments remain)
-- [ ] CI passes on every push (compile, test, coverage, lint)
-- [ ] Documentation matches code state
+- [x] `sdk/src/encryption.ts` uses real secp256k1 ECDH (no WARNING/TODO comments remain)
+- [x] CI passes on every push (compile, test, coverage, lint)
+- [x] Documentation matches code state
 
 **Phase 2 complete when:**
 - [ ] Contracts deployed and verified on Sepolia
-- [ ] `scripts/demo.ts` runs the full mint-verify-disclose flow against Sepolia
+- [x] `scripts/demo.ts` runs the full mint-verify-disclose flow against Sepolia
 - [ ] Deployed addresses published in repo
 
 **Phase 3 complete when:**
-- [ ] `CredentialRenewalManager.sol` and `InheritanceManager.sol` exist as separate contracts
-- [ ] `FIEBridge` + `InheritanceManager` can be deployed independently of core
+- [x] `CredentialRenewalManager.sol` and `InheritanceManager.sol` exist as separate contracts
+- [x] `FIEBridge` + `InheritanceManager` can be deployed independently of core
 - [ ] All existing tests pass against the new contract structure
-- [ ] Core contracts can be deployed without any inheritance dependencies
+- [x] Core contracts can be deployed without any inheritance dependencies
 
 **Phase 4 complete when:**
-- [ ] Professional audit completed on core contracts
-- [ ] Gas benchmarks published and within spec targets
-- [ ] Issuer reputation simplified for v1.0
+- [ ] Professional audit completed on core contracts — scope documented in `AUDIT_SCOPE.md`
+- [x] Gas benchmarks published and within spec targets — `test/gas-benchmark.test.ts`
+- [x] Issuer reputation simplified for v1.0 — `MIN_REPUTATION = 0`, gating removed
 
 ---
 

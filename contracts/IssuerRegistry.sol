@@ -52,7 +52,8 @@ contract IssuerRegistry is
     // Constants
     // ============================================
 
-    /// @notice Minimum reputation score to issue credentials (10%)
+    /// @notice Minimum reputation score to issue credentials
+    /// @dev v1.0: Disabled (0). Authorization gated by isActive boolean only.
     uint256 public constant MIN_REPUTATION = CredentialTypes.MIN_REPUTATION;
 
     /// @notice Maximum reputation score (100%)
@@ -418,9 +419,8 @@ contract IssuerRegistry is
         if (!_issuers[issuerAddress].isActive) {
             return false;
         }
-        if (_issuers[issuerAddress].reputationScore < MIN_REPUTATION) {
-            return false;
-        }
+        // v1.0: Reputation gating disabled. Authorization determined by isActive + type.
+        // v1.1: Re-add `reputationScore < MIN_REPUTATION` check with calibrated threshold.
         return _issuerTypes[issuerAddress].contains(claimType);
     }
 
@@ -444,10 +444,8 @@ contract IssuerRegistry is
         }
 
         // Check authorization
+        // v1.0: Reputation gating disabled. Active status + type authorization only.
         if (!_issuers[issuerAddress].isActive) {
-            return (false, issuerAddress);
-        }
-        if (_issuers[issuerAddress].reputationScore < MIN_REPUTATION) {
             return (false, issuerAddress);
         }
         if (!_issuerTypes[issuerAddress].contains(claimType)) {
