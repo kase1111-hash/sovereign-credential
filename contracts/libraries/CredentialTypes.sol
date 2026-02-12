@@ -287,8 +287,10 @@ library CredentialTypes {
     // Constants
     // ============================================
 
-    /// @notice Minimum reputation score to issue credentials (10% = 1000 basis points)
-    uint256 internal constant MIN_REPUTATION = 1000;
+    /// @notice Minimum reputation score to issue credentials
+    /// @dev v1.0: Set to 0 (disabled). Authorization gated by isActive only.
+    ///      v1.1: Re-enable with calibrated threshold once real issuer data exists.
+    uint256 internal constant MIN_REPUTATION = 0;
 
     /// @notice Maximum reputation score (100% = 10000 basis points)
     uint256 internal constant MAX_REPUTATION = 10000;

@@ -36,7 +36,7 @@ describe("Liveness & Economic Invariants (SPEC Sections 10.2 & 10.3)", function 
   const ONE_DAY = 24 * 60 * 60;
   const RENEWAL_TIMEOUT = 30 * ONE_DAY; // 30 days
   const INHERITANCE_TIMEOUT = 7 * ONE_DAY; // 7 days
-  const MIN_REPUTATION = 1000n;
+  const MIN_REPUTATION = 0n; // v1.0: reputation gating disabled
   const INITIAL_REPUTATION = 5000n;
   const MAX_REPUTATION = 10000n;
 
@@ -415,36 +415,35 @@ describe("Liveness & Economic Invariants (SPEC Sections 10.2 & 10.3)", function 
   });
 
   // ============================================
-  // INV-08: Issuers below reputation threshold cannot issue
-  // ∀ issuer i: i.reputationScore >= MIN_REPUTATION → i.canIssue
+  // INV-08: Only active issuers can issue credentials
+  // v1.0: Reputation gating disabled — isActive is the sole gate.
+  // v1.1: Re-introduce reputation threshold gating.
+  // ∀ issuer i: i.isActive ↔ i.canIssue
   // ============================================
 
-  describe("INV-08: Issuers below reputation threshold cannot issue", function () {
-    it("should allow issuers above MIN_REPUTATION to issue", async function () {
+  describe("INV-08: Only active issuers can issue (v1.0 — reputation disabled)", function () {
+    it("should allow active issuers to issue regardless of reputation", async function () {
       const fixture = await loadFixture(deployLivenessTestFixture);
-      const { issuerRegistry, issuer1, subject } = fixture;
+      const { issuerRegistry, arbiter, issuer1, subject } = fixture;
 
-      // Verify initial reputation is above minimum
-      const reputation = await issuerRegistry.getReputation(issuer1.address);
-      expect(reputation).to.be.gte(MIN_REPUTATION);
+      // Reduce reputation to zero
+      const currentRep = await issuerRegistry.getReputation(issuer1.address);
+      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, -Number(currentRep), "Zero out for test");
 
-      // Issuer can mint
+      // Verify reputation is zero
+      expect(await issuerRegistry.getReputation(issuer1.address)).to.equal(0n);
+
+      // v1.0: Issuer can still mint because isActive is true
       const tokenId = await mintCredential(fixture, issuer1, ClaimTypes.LICENSE_OPERATOR, subject);
       expect(tokenId).to.be.gt(0n);
     });
 
-    it("should prevent issuers below MIN_REPUTATION from issuing", async function () {
+    it("should prevent deactivated issuers from issuing", async function () {
       const fixture = await loadFixture(deployLivenessTestFixture);
-      const { claimToken, issuerRegistry, arbiter, issuer1, subject } = fixture;
+      const { claimToken, issuerRegistry, issuer1, subject } = fixture;
 
-      // Reduce reputation below minimum
-      const currentRep = await issuerRegistry.getReputation(issuer1.address);
-      const reduction = Number(currentRep) - Number(MIN_REPUTATION) + 100; // Go below MIN
-      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, -reduction);
-
-      // Verify reputation is below minimum
-      const newRep = await issuerRegistry.getReputation(issuer1.address);
-      expect(newRep).to.be.lt(MIN_REPUTATION);
+      // Deactivate issuer
+      await issuerRegistry.deactivateIssuer(issuer1.address, "Test deactivation");
 
       // Issuer should not be able to mint
       const request = await createMintRequest(ClaimTypes.LICENSE_OPERATOR, subject.address);
@@ -453,22 +452,20 @@ describe("Liveness & Economic Invariants (SPEC Sections 10.2 & 10.3)", function 
       await expect(claimToken.connect(issuer1).mint(request, signature)).to.be.reverted;
     });
 
-    it("should restore issuance capability when reputation returns above threshold", async function () {
+    it("should restore issuance capability when reactivated", async function () {
       const fixture = await loadFixture(deployLivenessTestFixture);
-      const { claimToken, issuerRegistry, arbiter, issuer1, subject } = fixture;
+      const { claimToken, issuerRegistry, issuer1, subject } = fixture;
 
-      // Reduce reputation below minimum
-      const currentRep = await issuerRegistry.getReputation(issuer1.address);
-      const reduction = Number(currentRep) - Number(MIN_REPUTATION) + 100;
-      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, -reduction);
+      // Deactivate
+      await issuerRegistry.deactivateIssuer(issuer1.address, "Temporary");
 
       // Cannot issue
       const request1 = await createMintRequest(ClaimTypes.LICENSE_OPERATOR, subject.address);
       const signature1 = await signMintRequest(issuer1, request1, await claimToken.getAddress());
       await expect(claimToken.connect(issuer1).mint(request1, signature1)).to.be.reverted;
 
-      // Restore reputation above minimum
-      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, 500);
+      // Reactivate
+      await issuerRegistry.reactivateIssuer(issuer1.address);
 
       // Should be able to issue again
       const request2 = await createMintRequest(ClaimTypes.LICENSE_OPERATOR, subject.address);
@@ -476,26 +473,16 @@ describe("Liveness & Economic Invariants (SPEC Sections 10.2 & 10.3)", function 
       await expect(claimToken.connect(issuer1).mint(request2, signature2)).to.not.be.reverted;
     });
 
-    it("should enforce MIN_REPUTATION boundary exactly", async function () {
+    it("should still track reputation adjustments for future v1.1 use", async function () {
       const fixture = await loadFixture(deployLivenessTestFixture);
-      const { claimToken, issuerRegistry, arbiter, issuer1, subject } = fixture;
+      const { issuerRegistry, arbiter, issuer1 } = fixture;
 
-      // Set reputation to exactly MIN_REPUTATION
-      const currentRep = await issuerRegistry.getReputation(issuer1.address);
-      const adjustment = Number(MIN_REPUTATION) - Number(currentRep);
-      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, adjustment);
+      // adjustReputation still works — data preserved for v1.1
+      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, 1000, "Good work");
+      expect(await issuerRegistry.getReputation(issuer1.address)).to.equal(6000n);
 
-      // Should be able to issue at exactly MIN_REPUTATION
-      const tokenId = await mintCredential(fixture, issuer1, ClaimTypes.LICENSE_OPERATOR, subject);
-      expect(tokenId).to.be.gt(0n);
-
-      // Reduce by 1 below minimum
-      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, -1);
-
-      // Should not be able to issue
-      const request = await createMintRequest(ClaimTypes.LICENSE_OPERATOR, subject.address);
-      const signature = await signMintRequest(issuer1, request, await claimToken.getAddress());
-      await expect(claimToken.connect(issuer1).mint(request, signature)).to.be.reverted;
+      await issuerRegistry.connect(arbiter).adjustReputation(issuer1.address, -3000, "Complaints");
+      expect(await issuerRegistry.getReputation(issuer1.address)).to.equal(3000n);
     });
   });
 
