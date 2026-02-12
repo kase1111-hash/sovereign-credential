@@ -9,6 +9,25 @@
 
 ---
 
+## POST-EVALUATION UPDATES
+
+The following issues identified in this report have been addressed:
+
+| Original Finding | Resolution | Phase |
+|-----------------|-----------|-------|
+| Encryption is placeholder (keccak256 concat) | Replaced with secp256k1 ECDH + HKDF-SHA256 in `sdk/src/encryption.ts` | Phase 1 |
+| 6 TODO/WARNING comments in encryption | All removed; implementation is production-grade | Phase 1 |
+| No CI/CD pipeline | Added `.github/workflows/ci.yml` (compile, test, coverage, lint) | Phase 1 |
+| No deployment evidence | Demo script created (`scripts/demo.ts`); Sepolia deployment pending | Phase 2 |
+| Inheritance tightly coupled to core | `CredentialLifecycleManager` split into `CredentialRenewalManager` + `InheritanceManager` | Phase 3 |
+| Reputation system over-complex for v1.0 | `MIN_REPUTATION` set to 0; authorization gated by `isActive` only | Phase 4 |
+| No gas benchmarks | `test/gas-benchmark.test.ts` measures against NFR-01/NFR-02 targets | Phase 4 |
+| No audit scope documentation | `AUDIT_SCOPE.md` created for professional engagement | Phase 4 |
+
+**Updated classification:** The project has moved from "Underdeveloped" toward "Deployable" pending Sepolia deployment and professional audit.
+
+---
+
 ## CONCEPT ASSESSMENT
 
 **What real problem does this solve?**

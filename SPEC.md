@@ -781,13 +781,22 @@ INV-09: totalIssued(i) >= totalRevoked(i) + totalActive(i)
 
 ### 11.1 Contract Status
 
-| Contract | Status | Tests | Audit |
-|----------|--------|-------|-------|
-| ClaimToken | Implemented | Unit + integration | Audited (2026-01-28) |
-| IssuerRegistry | Implemented | Unit + integration | Audited (2026-01-28) |
-| ZKDisclosureEngine | Implemented | Unit + integration | Audited (2026-01-28) |
-| CredentialLifecycleManager | Implemented | Unit + integration | Audited (2026-01-28) |
-| FIEBridge | Implemented | Unit + integration | Audited (2026-01-28) |
+**Core contracts (v1.0 scope):**
+
+| Contract | LOC | Status | Tests | Notes |
+|----------|-----|--------|-------|-------|
+| ClaimToken | 987 | Implemented | Unit + integration + invariant + fuzz | ERC721 credential NFT |
+| IssuerRegistry | 670 | Implemented | Unit + integration + invariant | Reputation gating disabled for v1.0 (`MIN_REPUTATION = 0`) |
+| ZKDisclosureEngine | 928 | Implemented | Unit + integration | ZK proof management and replay prevention |
+| CredentialRenewalManager | 398 | Implemented | Via legacy CLM tests | Extracted from CredentialLifecycleManager (Phase 3) |
+
+**Optional modules (v1.1 scope):**
+
+| Contract | LOC | Status | Notes |
+|----------|-----|--------|-------|
+| InheritanceManager | ~520 | Implemented | Extracted from CredentialLifecycleManager (Phase 3); depends on FIE |
+| FIEBridge | 449 | Implemented | Bridge to external FIE system (not yet in production) |
+| CredentialLifecycleManager | 1,204 | Legacy | Monolithic predecessor; superseded by RenewalManager + InheritanceManager |
 
 ### 11.2 ZK Circuit Status
 
@@ -804,6 +813,11 @@ INV-09: totalIssued(i) >= totalRevoked(i) + totalActive(i)
 
 | Integration | Status | Notes |
 |-------------|--------|-------|
+| SDK Encryption | Implemented | secp256k1 ECDH + HKDF-SHA256 + AES-256-GCM (Phase 1) |
+| CI/CD Pipeline | Implemented | `.github/workflows/ci.yml` — compile, test, coverage, lint (Phase 1) |
+| Demo Script | Implemented | `scripts/demo.ts` — 7-step E2E flow (Phase 2) |
+| Gas Benchmarks | Implemented | `test/gas-benchmark.test.ts` — NFR-01/NFR-02 targets (Phase 4) |
+| Testnet Deployment | Pending | Scripts ready; Sepolia deployment not yet executed |
 | NatLangChain | Not Started | Depends on NatLangChain v1.0 |
 | FIE Bridge | Contract implemented | FIE system not yet in production |
 | IPFS Metadata | Not Started | |
@@ -817,10 +831,11 @@ INV-09: totalIssued(i) >= totalRevoked(i) + totalActive(i)
 | M2: Basic lifecycle | Q2 2026 | Complete |
 | M3: ZK circuits (age, range) | Q3 2026 | Complete |
 | M4: FIE integration | Q3 2026 | Contract complete, FIE pending |
-| M5: Frontend wallet | Q4 2026 | Not Started |
-| M6: Testnet launch | Q4 2026 | Not Started |
-| M7: Security audit | Q1 2027 | Initial audit complete (2026-01-28) |
-| M8: Mainnet launch | Q2 2027 | Not Started |
+| M5: Contract refactor (CLM split) | 2026-02-12 | Complete (Phase 3) |
+| M6: Production hardening | 2026-02-12 | Complete (Phase 4) |
+| M7: Testnet launch | Q4 2026 | Pending — deployment scripts ready |
+| M8: Security audit | Q1 2027 | Scope documented in `AUDIT_SCOPE.md` |
+| M9: Mainnet launch | Q2 2027 | Not Started |
 
 ---
 
