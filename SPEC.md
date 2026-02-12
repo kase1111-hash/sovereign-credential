@@ -783,44 +783,44 @@ INV-09: totalIssued(i) >= totalRevoked(i) + totalActive(i)
 
 | Contract | Status | Tests | Audit |
 |----------|--------|-------|-------|
-| ClaimToken | 🔴 Not Started | - | - |
-| IssuerRegistry | 🔴 Not Started | - | - |
-| ZKDisclosureEngine | 🔴 Not Started | - | - |
-| CredentialLifecycleManager | 🔴 Not Started | - | - |
-| FIEBridge | 🔴 Not Started | - | - |
+| ClaimToken | Implemented | Unit + integration | Audited (2026-01-28) |
+| IssuerRegistry | Implemented | Unit + integration | Audited (2026-01-28) |
+| ZKDisclosureEngine | Implemented | Unit + integration | Audited (2026-01-28) |
+| CredentialLifecycleManager | Implemented | Unit + integration | Audited (2026-01-28) |
+| FIEBridge | Implemented | Unit + integration | Audited (2026-01-28) |
 
 ### 11.2 ZK Circuit Status
 
 | Circuit | Status | Constraints | Proving Time |
 |---------|--------|-------------|--------------|
-| AgeThreshold | 🔴 Not Started | - | - |
-| DateRange | 🔴 Not Started | - | - |
-| ValueRange | 🔴 Not Started | - | - |
-| SetMembership | 🔴 Not Started | - | - |
-| Existence | 🔴 Not Started | - | - |
-| Compound | 🔴 Not Started | - | - |
+| AgeThreshold | Implemented | ~5,000 | <1s |
+| DateRange | Implemented | ~6,000 | <1s |
+| ValueRange | Implemented | ~5,500 | <1s |
+| SetMembership | Implemented | ~10,000 | <2s |
+| Existence | Implemented | - | - |
+| Compound (2/3/4) | Implemented | Varies | Varies |
 
 ### 11.3 Integration Status
 
 | Integration | Status | Notes |
 |-------------|--------|-------|
-| NatLangChain | 🔴 Not Started | Depends on NatLangChain v1.0 |
-| FIE Bridge | 🔴 Not Started | Depends on FIE v1.0 |
-| IPFS Metadata | 🔴 Not Started | |
-| Frontend Wallet | 🔴 Not Started | |
+| NatLangChain | Not Started | Depends on NatLangChain v1.0 |
+| FIE Bridge | Contract implemented | FIE system not yet in production |
+| IPFS Metadata | Not Started | |
+| Frontend Wallet | Not Started | |
 
 ### 11.4 Milestone Roadmap
 
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| M1: Core contracts | Q2 2026 | 🔴 |
-| M2: Basic lifecycle | Q2 2026 | 🔴 |
-| M3: ZK circuits (age, range) | Q3 2026 | 🔴 |
-| M4: FIE integration | Q3 2026 | 🔴 |
-| M5: Frontend wallet | Q4 2026 | 🔴 |
-| M6: Testnet launch | Q4 2026 | 🔴 |
-| M7: Security audit | Q1 2027 | 🔴 |
-| M8: Mainnet launch | Q2 2027 | 🔴 |
+| M1: Core contracts | Q2 2026 | Complete |
+| M2: Basic lifecycle | Q2 2026 | Complete |
+| M3: ZK circuits (age, range) | Q3 2026 | Complete |
+| M4: FIE integration | Q3 2026 | Contract complete, FIE pending |
+| M5: Frontend wallet | Q4 2026 | Not Started |
+| M6: Testnet launch | Q4 2026 | Not Started |
+| M7: Security audit | Q1 2027 | Initial audit complete (2026-01-28) |
+| M8: Mainnet launch | Q2 2027 | Not Started |
 
 ---
 
@@ -883,5 +883,5 @@ Credential metadata stored on IPFS follows this schema:
 ---
 
 **Specification Version:** 1.0  
-**Last Updated:** 2026-01-11  
+**Last Updated:** 2026-02-12  
 **Authors:** Kase / Claude collaboration

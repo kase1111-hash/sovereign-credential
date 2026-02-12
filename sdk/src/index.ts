@@ -75,6 +75,7 @@ export {
   hashPayload,
   generateCommitmentKeccak,
   generateSalt,
+  generateKeyPair,
 } from "./encryption";
 
 // ============================================
