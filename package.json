@@ -12,6 +12,8 @@
     "deploy": "hardhat run scripts/deploy.ts",
     "deploy:testnet": "hardhat run scripts/deploy-testnet.ts --network sepolia",
     "deploy:mainnet": "hardhat run scripts/deploy-mainnet.ts --network mainnet",
+    "demo": "hardhat run scripts/demo.ts",
+    "demo:local": "hardhat run scripts/demo.ts --network localhost",
     "verify": "hardhat verify",
     "clean": "hardhat clean",
     "lint": "eslint . --ext .ts,.tsx",
