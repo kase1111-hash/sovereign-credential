@@ -1,13 +1,14 @@
 /**
  * @file ECIES encryption helpers for testing
  * @description Utilities for encrypting/decrypting credential payloads
- *
- * Note: In production, use a proper ECIES library like eth-crypto or eccrypto.
- * These helpers provide a simplified implementation for testing purposes.
+ * using secp256k1 ECDH key agreement and HKDF-SHA256 key derivation.
  */
 
 import { ethers } from "hardhat";
 import * as crypto from "crypto";
+
+/** HKDF info string — must match sdk/src/encryption.ts */
+const HKDF_INFO = "sovereign-credential-ecies";
 
 // ============================================
 // Key Management
@@ -45,21 +46,30 @@ export function deriveAddress(publicKey: string): string {
 }
 
 // ============================================
-// Simplified ECIES Implementation
+// ECIES Implementation
 // ============================================
 
 /**
- * Encrypt data using a simplified ECIES scheme
+ * Derive ECDH shared secret using secp256k1
+ */
+function deriveSharedSecret(privateKey: string, publicKey: string): Uint8Array {
+  const signingKey = new ethers.SigningKey(privateKey);
+  const sharedPoint = signingKey.computeSharedSecret(publicKey);
+  // Extract x-coordinate (bytes 1-33) from uncompressed point
+  return ethers.getBytes(sharedPoint).slice(1, 33);
+}
+
+/**
+ * Derive AES-256 encryption key using HKDF-SHA256
+ */
+function deriveEncryptionKey(sharedSecret: Uint8Array, salt: Uint8Array): Uint8Array {
+  return new Uint8Array(crypto.hkdfSync("sha256", sharedSecret, salt, HKDF_INFO, 32));
+}
+
+/**
+ * Encrypt data using ECIES
  *
- * In production, use proper ECIES with:
- * - ECDH key agreement on secp256k1
- * - HKDF key derivation
- * - AES-256-GCM encryption
- * - HMAC authentication
- *
- * This simplified version uses:
- * - Ephemeral key generation
- * - Simple XOR with shared secret hash (for testing only)
+ * Uses secp256k1 ECDH + HKDF-SHA256 + AES-256-GCM.
  */
 export function encryptPayload(
   payload: string | object,
@@ -74,25 +84,18 @@ export function encryptPayload(
   const payloadStr = typeof payload === "string" ? payload : JSON.stringify(payload);
   const payloadBytes = Buffer.from(payloadStr, "utf8");
 
-  // Generate ephemeral key pair
+  // Generate ephemeral secp256k1 key pair
   const ephemeralWallet = ethers.Wallet.createRandom();
-  const ephemeralPublicKey = ephemeralWallet.signingKey.publicKey;
+  const ephemeralPublicKey = ephemeralWallet.signingKey.compressedPublicKey;
 
   // Generate IV
   const iv = crypto.randomBytes(16);
 
-  // Derive shared secret (simplified - in production use proper ECDH)
-  const sharedSecret = ethers.keccak256(
-    ethers.concat([
-      ethers.getBytes(ephemeralWallet.privateKey),
-      ethers.getBytes(recipientPublicKey),
-    ])
-  );
+  // Derive shared secret via ECDH
+  const sharedSecret = deriveSharedSecret(ephemeralWallet.privateKey, recipientPublicKey);
 
-  // Derive encryption key
-  const encryptionKey = ethers.getBytes(
-    ethers.keccak256(ethers.concat([ethers.getBytes(sharedSecret), iv]))
-  ).slice(0, 32);
+  // Derive encryption key via HKDF
+  const encryptionKey = deriveEncryptionKey(sharedSecret, iv);
 
   // Encrypt using AES-256-GCM
   const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey, iv);
@@ -122,19 +125,12 @@ export function decryptPayload(
   iv: string,
   recipientPrivateKey: string
 ): string {
-  // Derive shared secret
-  const sharedSecret = ethers.keccak256(
-    ethers.concat([
-      ethers.getBytes(recipientPrivateKey),
-      ethers.getBytes(ephemeralPublicKey),
-    ])
-  );
+  // Derive shared secret via ECDH
+  const sharedSecret = deriveSharedSecret(recipientPrivateKey, ephemeralPublicKey);
 
-  // Derive encryption key
+  // Derive encryption key via HKDF
   const ivBytes = ethers.getBytes(iv);
-  const encryptionKey = ethers.getBytes(
-    ethers.keccak256(ethers.concat([ethers.getBytes(sharedSecret), ivBytes]))
-  ).slice(0, 32);
+  const encryptionKey = deriveEncryptionKey(sharedSecret, ivBytes);
 
   // Parse encrypted data
   const encryptedBytes = ethers.getBytes(encryptedData);
@@ -181,7 +177,7 @@ export function decryptPayloadToObject<T = Record<string, unknown>>(
 
 /**
  * Encode an encrypted payload for on-chain storage
- * Format: ephemeralPublicKey (65 bytes) + iv (16 bytes) + ciphertext
+ * Format: ephemeralPublicKey (33 bytes compressed secp256k1) + iv (16 bytes) + ciphertext
  */
 export function encodeEncryptedPayload(encrypted: {
   encryptedData: string;
@@ -205,10 +201,10 @@ export function decodeEncryptedPayload(encoded: string): {
 } {
   const bytes = ethers.getBytes(encoded);
 
-  // Uncompressed public key is 65 bytes (0x04 + 32 bytes x + 32 bytes y)
-  const ephemeralPublicKey = ethers.hexlify(bytes.slice(0, 65));
-  const iv = ethers.hexlify(bytes.slice(65, 81));
-  const encryptedData = ethers.hexlify(bytes.slice(81));
+  // Compressed public key is 33 bytes (0x02/0x03 + 32 bytes x)
+  const ephemeralPublicKey = ethers.hexlify(bytes.slice(0, 33));
+  const iv = ethers.hexlify(bytes.slice(33, 49));
+  const encryptedData = ethers.hexlify(bytes.slice(49));
 
   return {
     ephemeralPublicKey,

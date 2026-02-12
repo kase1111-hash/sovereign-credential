@@ -1,5 +1,6 @@
 # Sovereign Credential
 
+[![CI](https://github.com/kase1111-hash/sovereign-credential/actions/workflows/ci.yml/badge.svg)](https://github.com/kase1111-hash/sovereign-credential/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/Version-0.1.0--alpha-orange.svg)](https://github.com/kase1111-hash/sovereign-credential/releases)
 [![License: CC0](https://img.shields.io/badge/License-CC0-blue.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.28-blue.svg)](https://soliditylang.org/)
@@ -280,4 +281,4 @@ CC0 1.0 Universal - Public Domain Dedication
 
 ---
 
-**Version:** 0.1.0-alpha | **Last Updated:** 2026-01-23
+**Version:** 0.1.0-alpha | **Last Updated:** 2026-02-12

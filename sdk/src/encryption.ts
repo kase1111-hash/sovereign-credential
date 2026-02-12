@@ -1,16 +1,24 @@
 /**
  * @file Encryption Utilities
- * @description ECIES encryption/decryption for credential payloads
+ * @description ECIES encryption/decryption for credential payloads using
+ * secp256k1 ECDH key agreement and HKDF key derivation.
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
-import { keccak256, getBytes, concat, hexlify, toUtf8Bytes, AbiCoder } from "ethers";
+import { createCipheriv, createDecipheriv, randomBytes, hkdfSync } from "crypto";
+import { SigningKey, keccak256, getBytes, concat, hexlify, toUtf8Bytes, AbiCoder } from "ethers";
 import type {
   EncryptedPayload,
   KeyPair,
   DecryptedCredential,
   CredentialPayload,
 } from "./types";
+
+// ============================================
+// Constants
+// ============================================
+
+/** HKDF info string for domain separation */
+const HKDF_INFO = "sovereign-credential-ecies";
 
 // ============================================
 // Key Management
@@ -25,28 +33,44 @@ export function generateSalt(): bigint {
 }
 
 /**
- * Derive a simple shared secret from private and public keys
- *
- * WARNING: This is a simplified implementation for development/testing.
- * TODO: For production, replace with proper secp256k1 ECDH key agreement
- * using libraries like 'ethereum-cryptography' or '@noble/secp256k1':
- *
- * ```typescript
- * import { getSharedSecret } from '@noble/secp256k1';
- * const sharedSecret = getSharedSecret(privateKey, publicKey);
- * ```
+ * Generate a secp256k1 key pair for ECIES encryption
  */
-function deriveSharedSecret(privateKey: string, publicKey: string): Uint8Array {
-  const combined = concat([getBytes(privateKey), getBytes(publicKey)]);
-  return getBytes(keccak256(combined));
+export function generateKeyPair(): KeyPair {
+  const privateKeyBytes = randomBytes(32);
+  const privateKey = hexlify(privateKeyBytes);
+  const signingKey = new SigningKey(privateKey);
+  return {
+    privateKey,
+    publicKey: signingKey.compressedPublicKey,
+  };
 }
 
 /**
- * Derive encryption key from shared secret and IV
+ * Derive shared secret via secp256k1 ECDH
+ *
+ * Computes the ECDH shared point and extracts the x-coordinate (32 bytes)
+ * as the raw shared secret.
+ *
+ * @param privateKey - Sender's private key (32 bytes hex)
+ * @param publicKey - Recipient's public key (compressed 33 bytes or uncompressed 65 bytes, hex)
+ * @returns 32-byte raw shared secret (x-coordinate of shared point)
  */
-function deriveEncryptionKey(sharedSecret: Uint8Array, iv: Uint8Array): Uint8Array {
-  const combined = concat([sharedSecret, iv]);
-  return getBytes(keccak256(combined)).slice(0, 32);
+function deriveSharedSecret(privateKey: string, publicKey: string): Uint8Array {
+  const signingKey = new SigningKey(privateKey);
+  const sharedPoint = signingKey.computeSharedSecret(publicKey);
+  // Shared point is uncompressed (65 bytes: 0x04 || x || y). Extract x-coordinate.
+  return getBytes(sharedPoint).slice(1, 33);
+}
+
+/**
+ * Derive AES-256 encryption key from shared secret using HKDF-SHA256
+ *
+ * @param sharedSecret - Raw ECDH shared secret (32 bytes)
+ * @param salt - HKDF salt (IV is used as salt for domain separation per-message)
+ * @returns 32-byte AES-256 encryption key
+ */
+function deriveEncryptionKey(sharedSecret: Uint8Array, salt: Uint8Array): Uint8Array {
+  return new Uint8Array(hkdfSync("sha256", sharedSecret, salt, HKDF_INFO, 32));
 }
 
 // ============================================
@@ -57,17 +81,17 @@ function deriveEncryptionKey(sharedSecret: Uint8Array, iv: Uint8Array): Uint8Arr
 const MAX_PAYLOAD_SIZE = 32 * 1024;
 
 /**
- * Encrypt a credential payload using ECIES-like scheme
+ * Encrypt a credential payload using ECIES
  *
- * WARNING: This implementation uses a simplified key derivation for development.
- * TODO: For production, implement proper secp256k1 ECIES:
- * 1. Generate ephemeral keypair using secp256k1
- * 2. Compute shared secret via ECDH
- * 3. Derive encryption key using HKDF
+ * Flow:
+ * 1. Generate ephemeral secp256k1 keypair
+ * 2. Compute shared secret via ECDH(ephemeralPriv, recipientPub)
+ * 3. Derive AES-256 key via HKDF-SHA256(sharedSecret, IV)
+ * 4. Encrypt payload with AES-256-GCM
  *
  * @param payload - The payload object to encrypt
- * @param recipientPublicKey - Public key of the recipient (hex)
- * @param ephemeralPrivateKey - Optional ephemeral private key for deterministic encryption
+ * @param recipientPublicKey - Recipient's secp256k1 public key (compressed or uncompressed, hex)
+ * @param ephemeralPrivateKey - Optional ephemeral private key for deterministic encryption (testing)
  * @returns Encrypted payload structure
  * @throws Error if payload exceeds maximum size
  */
@@ -84,19 +108,18 @@ export function encryptPayload(
     throw new Error(`Payload size ${payloadBytes.length} exceeds maximum allowed size of ${MAX_PAYLOAD_SIZE} bytes`);
   }
 
-  // Generate ephemeral key if not provided
+  // Generate ephemeral secp256k1 keypair
   const ephemeralKey = ephemeralPrivateKey || hexlify(randomBytes(32));
-  // WARNING: Simplified implementation - in production, derive public key using secp256k1
-  // TODO: Use proper key derivation: const ephemeralPublicKey = getPublicKey(ephemeralKey);
-  const ephemeralPublicKey = keccak256(getBytes(ephemeralKey));
+  const ephemeralSigningKey = new SigningKey(ephemeralKey);
+  const ephemeralPublicKey = ephemeralSigningKey.compressedPublicKey;
 
   // Generate IV
   const iv = randomBytes(16);
 
-  // Derive shared secret
+  // Derive shared secret via ECDH
   const sharedSecret = deriveSharedSecret(ephemeralKey, recipientPublicKey);
 
-  // Derive encryption key
+  // Derive encryption key via HKDF
   const encryptionKey = deriveEncryptionKey(sharedSecret, iv);
 
   // Encrypt using AES-256-GCM
@@ -115,10 +138,15 @@ export function encryptPayload(
 }
 
 /**
- * Decrypt a credential payload
+ * Decrypt a credential payload using ECIES
  *
- * @param encrypted - Encrypted payload structure
- * @param recipientPrivateKey - Private key of the recipient (hex)
+ * Flow:
+ * 1. Compute shared secret via ECDH(recipientPriv, ephemeralPub)
+ * 2. Derive AES-256 key via HKDF-SHA256(sharedSecret, IV)
+ * 3. Decrypt with AES-256-GCM
+ *
+ * @param encrypted - Encrypted payload structure (from encryptPayload)
+ * @param recipientPrivateKey - Recipient's secp256k1 private key (hex)
  * @returns Decrypted payload as JSON object
  * @throws Error if decryption fails or payload is malformed
  */
@@ -166,7 +194,7 @@ export function decryptPayload(
 
 /**
  * Encode encrypted payload for on-chain storage
- * Format: ephemeralPublicKey (32 bytes hash) + iv (16 bytes) + ciphertext
+ * Format: ephemeralPublicKey (33 bytes compressed secp256k1) + iv (16 bytes) + ciphertext
  */
 export function encodeEncryptedPayload(encrypted: EncryptedPayload): string {
   return hexlify(
@@ -184,10 +212,10 @@ export function encodeEncryptedPayload(encrypted: EncryptedPayload): string {
 export function decodeEncryptedPayload(encoded: string): EncryptedPayload {
   const bytes = getBytes(encoded);
 
-  // Ephemeral public key is 32 bytes (keccak hash)
-  const ephemeralPublicKey = hexlify(bytes.slice(0, 32));
-  const iv = hexlify(bytes.slice(32, 48));
-  const encryptedData = hexlify(bytes.slice(48));
+  // Ephemeral public key is 33 bytes (compressed secp256k1)
+  const ephemeralPublicKey = hexlify(bytes.slice(0, 33));
+  const iv = hexlify(bytes.slice(33, 49));
+  const encryptedData = hexlify(bytes.slice(49));
 
   return {
     ephemeralPublicKey,
