@@ -96,12 +96,12 @@ async function main() {
     claimTokenAddr = await ct.getAddress();
     console.log(`  ClaimToken:        ${claimTokenAddr}`);
 
-    // CredentialLifecycleManager
-    const CLM = await ethers.getContractFactory("CredentialLifecycleManager");
-    const clm = await upgrades.deployProxy(CLM, [claimTokenAddr, issuerRegistryAddr], { initializer: "initialize", kind: "uups" });
-    await clm.waitForDeployment();
-    const clmAddr = await clm.getAddress();
-    console.log(`  LifecycleManager:  ${clmAddr}`);
+    // CredentialRenewalManager (core lifecycle — no FIE dependency)
+    const CRM = await ethers.getContractFactory("CredentialRenewalManager");
+    const crm = await upgrades.deployProxy(CRM, [claimTokenAddr, issuerRegistryAddr], { initializer: "initialize", kind: "uups" });
+    await crm.waitForDeployment();
+    const crmAddr = await crm.getAddress();
+    console.log(`  RenewalManager:    ${crmAddr}`);
 
     // ZKDisclosureEngine
     const ZK = await ethers.getContractFactory("ZKDisclosureEngine");
@@ -113,7 +113,7 @@ async function main() {
     // Cross-references
     const CREDENTIAL_CONTRACT_ROLE = await ir.CREDENTIAL_CONTRACT_ROLE();
     await ir.grantRole(CREDENTIAL_CONTRACT_ROLE, claimTokenAddr);
-    await ct.setLifecycleManager(clmAddr);
+    await ct.setLifecycleManager(crmAddr);
     console.log("  Cross-references configured");
   }
 

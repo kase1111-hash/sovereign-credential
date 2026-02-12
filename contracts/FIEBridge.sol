@@ -8,7 +8,7 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import {IFIEBridge} from "./interfaces/IFIEBridge.sol";
-import {ICredentialLifecycleManager} from "./interfaces/ICredentialLifecycleManager.sol";
+import {IInheritanceManager} from "./interfaces/IInheritanceManager.sol";
 import {CredentialTypes} from "./libraries/CredentialTypes.sol";
 import {Errors} from "./libraries/Errors.sol";
 
@@ -42,8 +42,8 @@ contract FIEBridge is
     // Storage
     // ============================================
 
-    /// @notice Reference to the CredentialLifecycleManager contract
-    ICredentialLifecycleManager public lifecycleManager;
+    /// @notice Reference to the InheritanceManager contract
+    IInheritanceManager public inheritanceManager;
 
     /// @notice Authorized FIE execution agent address
     address public fieExecutionAgent;
@@ -68,19 +68,19 @@ contract FIEBridge is
 
     /**
      * @notice Initialize the contract
-     * @param _lifecycleManager Address of the CredentialLifecycleManager contract
+     * @param _inheritanceManager Address of the InheritanceManager contract
      */
-    function initialize(address _lifecycleManager) public initializer {
+    function initialize(address _inheritanceManager) public initializer {
         __AccessControl_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
 
-        if (_lifecycleManager == address(0)) {
+        if (_inheritanceManager == address(0)) {
             revert Errors.ZeroAddress();
         }
 
-        lifecycleManager = ICredentialLifecycleManager(_lifecycleManager);
+        inheritanceManager = IInheritanceManager(_inheritanceManager);
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPGRADER_ROLE, msg.sender);
@@ -328,18 +328,18 @@ contract FIEBridge is
     /**
      * @inheritdoc IFIEBridge
      */
-    function setLifecycleManager(address _lifecycleManager) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_lifecycleManager == address(0)) {
+    function setLifecycleManager(address _inheritanceManagerAddr) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_inheritanceManagerAddr == address(0)) {
             revert Errors.ZeroAddress();
         }
-        lifecycleManager = ICredentialLifecycleManager(_lifecycleManager);
+        inheritanceManager = IInheritanceManager(_inheritanceManagerAddr);
     }
 
     /**
      * @inheritdoc IFIEBridge
      */
     function getLifecycleManager() external view override returns (address) {
-        return address(lifecycleManager);
+        return address(inheritanceManager);
     }
 
     /**
@@ -381,7 +381,7 @@ contract FIEBridge is
         }
 
         // Get inheritance directive from lifecycle manager
-        CredentialTypes.InheritanceDirective memory directive = lifecycleManager.getInheritanceDirective(tokenId);
+        CredentialTypes.InheritanceDirective memory directive = inheritanceManager.getInheritanceDirective(tokenId);
 
         // Verify directive exists and requires FIE trigger
         if (directive.beneficiaries.length == 0) {
@@ -399,7 +399,7 @@ contract FIEBridge is
         // Execute inheritance via lifecycle manager
         // Encode the intent hash as the FIE proof
         bytes memory fieProof = abi.encode(intentHash);
-        lifecycleManager.executeInheritance(tokenId, fieProof);
+        inheritanceManager.executeInheritance(tokenId, fieProof);
 
         // Mark as processed
         processedTriggers[intentHash] = true;
@@ -416,7 +416,7 @@ contract FIEBridge is
      */
     function _executeInheritanceForBatch(uint256 tokenId, bytes32 intentHash) internal {
         // Get inheritance directive from lifecycle manager
-        CredentialTypes.InheritanceDirective memory directive = lifecycleManager.getInheritanceDirective(tokenId);
+        CredentialTypes.InheritanceDirective memory directive = inheritanceManager.getInheritanceDirective(tokenId);
 
         // Verify directive exists and requires FIE trigger
         if (directive.beneficiaries.length == 0) {
@@ -433,7 +433,7 @@ contract FIEBridge is
 
         // Execute inheritance via lifecycle manager
         bytes memory fieProof = abi.encode(intentHash);
-        lifecycleManager.executeInheritance(tokenId, fieProof);
+        inheritanceManager.executeInheritance(tokenId, fieProof);
 
         // Emit inheritance executed event
         emit CredentialInheritanceExecuted(tokenId, intentHash, directive.beneficiaries[0]);
