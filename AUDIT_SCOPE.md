@@ -10,14 +10,14 @@
 
 | Contract | LOC | Description |
 |----------|-----|-------------|
-| `contracts/ClaimToken.sol` | ~950 | ERC721 credential NFT — mint, verify, status management, soulbound transfer rules |
-| `contracts/IssuerRegistry.sol` | ~670 | Issuer registration, type authorization, delegation, reputation tracking |
-| `contracts/ZKDisclosureEngine.sol` | ~450 | ZK proof verification, disclosure request management, replay prevention |
-| `contracts/CredentialRenewalManager.sol` | ~400 | Renewal workflow (request/approve/deny), batch transfer, grace period |
-| `contracts/libraries/CredentialTypes.sol` | ~320 | Shared data structures, constants, enums |
-| `contracts/libraries/Errors.sol` | ~230 | Custom error definitions |
+| `contracts/ClaimToken.sol` | 987 | ERC721 credential NFT — mint, verify, status management, soulbound transfer rules |
+| `contracts/IssuerRegistry.sol` | 670 | Issuer registration, type authorization, delegation, reputation tracking |
+| `contracts/ZKDisclosureEngine.sol` | 928 | ZK proof verification, disclosure request management, replay prevention |
+| `contracts/CredentialRenewalManager.sol` | 398 | Renewal workflow (request/approve/deny), batch transfer, grace period |
+| `contracts/libraries/CredentialTypes.sol` | 321 | Shared data structures, constants, enums |
+| `contracts/libraries/Errors.sol` | 227 | Custom error definitions |
 
-**Total in-scope:** ~3,020 LOC Solidity
+**Total in-scope:** ~3,530 LOC Solidity
 
 ### Supporting Interfaces (read for context, not primary audit target)
 

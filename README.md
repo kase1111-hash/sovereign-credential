@@ -31,40 +31,38 @@ Sovereign Credential mints verifiable claims as NFTs on NatLangChain. The proof 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     SOVEREIGN CREDENTIAL                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐   ┌─────────────┐   ┌─────────────────────┐   │
-│  │  Claim      │   │  Issuer     │   │  ZK Disclosure      │   │
-│  │  Token      │   │  Registry   │   │  Engine             │   │
-│  │  (ERC721)   │   │             │   │                     │   │
-│  └──────┬──────┘   └──────┬──────┘   └──────────┬──────────┘   │
-│         │                 │                      │              │
-│         └────────────┬────┴──────────────────────┘              │
-│                      │                                          │
-│              ┌───────▼───────┐                                  │
-│              │  Credential   │                                  │
-│              │  Lifecycle    │                                  │
-│              │  Manager      │                                  │
-│              └───────┬───────┘                                  │
-│                      │                                          │
-└──────────────────────┼──────────────────────────────────────────┘
-                       │
-           ┌───────────▼───────────┐
-           │     NatLangChain      │
-           │   (Intent Records)    │
-           └───────────┬───────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        │                             │
-        ▼                             ▼
-┌───────────────┐           ┌─────────────────┐
-│  Finite       │           │  Other          │
-│  Intent       │           │  NatLangChain   │
-│  Executor     │           │  Consumers      │
-│  (Inheritance)│           │                 │
-└───────────────┘           └─────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                   SOVEREIGN CREDENTIAL (v1.0 core)               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────┐   ┌─────────────┐   ┌──────────────────────┐   │
+│  │  Issuer     │   │  Claim      │   │  ZK Disclosure       │   │
+│  │  Registry   │──▶│  Token      │◀──│  Engine              │   │
+│  │             │   │  (ERC721)   │   │                      │   │
+│  └─────────────┘   └──────┬──────┘   └──────────────────────┘   │
+│                           │                                      │
+│                   ┌───────▼───────┐                              │
+│                   │  Credential   │                              │
+│                   │  Renewal      │                              │
+│                   │  Manager      │                              │
+│                   └───────────────┘                              │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│              OPTIONAL MODULE (v1.1 — inheritance)                │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌───────────────┐         ┌─────────────────┐                  │
+│  │  Inheritance  │◀────────│   FIE Bridge     │                  │
+│  │  Manager      │         │                 │                  │
+│  └───────────────┘         └────────┬────────┘                  │
+│                                     │                            │
+└─────────────────────────────────────┼────────────────────────────┘
+                                      │
+                          ┌───────────▼───────────┐
+                          │  Finite Intent        │
+                          │  Executor (external)  │
+                          └───────────────────────┘
 ```
 
 ## Core Components
@@ -85,7 +83,7 @@ The NFT representing a verifiable claim. Contains:
 Manages who can make valid claims of what types:
 
 - **Issuer registration**: Public keys, claim types authorized, jurisdiction
-- **Reputation tracking**: Claim validity history, dispute outcomes
+- **Active/suspended gating**: v1.0 uses boolean status; granular reputation scoring deferred to v1.1
 - **Revocation authority**: Which issuers can revoke which claim types
 - **Delegation**: Issuers can delegate signing authority to sub-entities
 
@@ -98,15 +96,24 @@ Enables proving facts about credentials without revealing the credentials:
 - **Set membership**: Prove credential is one of valid types without revealing which
 - **Compound proofs**: Combine multiple disclosures in single proof
 
-### CredentialLifecycleManager
+### CredentialRenewalManager
 
-Handles credential state transitions:
+Handles credential lifecycle operations (v1.0 core):
 
-- **Issuance**: Mint new credential with issuer attestation
 - **Transfer**: Move credential between wallets (where applicable)
 - **Renewal**: Update expiring credentials with fresh attestation
-- **Revocation**: Issuer-initiated invalidation
-- **Inheritance**: Integration with FIE for posthumous transfer
+- **Grace periods**: Time-limited renewal window after expiration
+- **Batch transfer**: Multi-credential transfer in a single transaction
+
+### InheritanceManager (Optional, v1.1)
+
+Handles posthumous credential transfer:
+
+- **Inheritance directives**: Designate beneficiaries and shares
+- **Credential splitting**: Divide property-type credentials among heirs
+- **Executor access**: Time-bounded estate settlement access
+- **Dispute resolution**: On-chain dispute filing and arbitration
+- **FIE integration**: Triggered by Finite Intent Executor death verification
 
 ## Use Cases
 
@@ -143,13 +150,21 @@ This connection is optional—credentials exist independently of FIE and don't s
 
 ## Smart Contracts
 
+**Core (v1.0):**
+
 | Contract | Purpose |
 |----------|---------|
 | **ClaimToken** | ERC721 credential NFT with encrypted payload and ZK commitments |
-| **IssuerRegistry** | Authorized issuer management and reputation tracking |
-| **ZKDisclosureEngine** | Zero-knowledge proof generation and verification |
-| **CredentialLifecycleManager** | Issuance, transfer, renewal, revocation workflows |
-| **FIEBridge** | Optional integration with Finite Intent Executor for inheritance |
+| **IssuerRegistry** | Authorized issuer management, delegation, and reputation tracking |
+| **ZKDisclosureEngine** | Zero-knowledge proof verification and replay prevention |
+| **CredentialRenewalManager** | Renewal, batch transfer, and grace period workflows |
+
+**Optional (v1.1 — inheritance module):**
+
+| Contract | Purpose |
+|----------|---------|
+| **InheritanceManager** | Inheritance directives, credential splitting, executor access, disputes |
+| **FIEBridge** | Integration with Finite Intent Executor for death-triggered transfers |
 
 ## Installation
 
@@ -241,15 +256,17 @@ const isValidProof = await zkEngine.verifyAgeProof(proof, tokenId, 18, "GREATER_
 - [x] Core specification
 - [x] ClaimToken contract
 - [x] IssuerRegistry contract
-- [x] Basic lifecycle management
-- [x] ZK disclosure circuits (age, range, set membership)
-- [x] FIE bridge integration
-- [x] TypeScript SDK
-- [x] Deployment scripts
-- [x] Comprehensive test suite
+- [x] ZK disclosure circuits (age, range, set membership, compound)
+- [x] TypeScript SDK with secp256k1 ECDH encryption
+- [x] Comprehensive test suite (unit, integration, invariant, fuzz)
+- [x] CI/CD pipeline (compile, test, coverage, lint)
+- [x] Contract refactor: split lifecycle manager into RenewalManager + InheritanceManager
+- [x] Gas benchmarks against spec targets
+- [x] Audit scope documentation
+- [ ] Testnet deployment (Sepolia)
+- [ ] Professional security audit
 - [ ] Frontend credential wallet
 - [ ] Issuer onboarding portal
-- [ ] Mobile verification app
 
 ## Part of the NatLangChain Ecosystem
 
